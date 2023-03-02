@@ -1,25 +1,26 @@
 <script lang="ts">
-  import { stdlib } from "../store.js";
+  import { stdlib, currContract } from "../store.js";
   import { Button, Heading } from "flowbite-svelte";
+  import * as backend from "@contract";
+  import { onMount } from "svelte";
 
-  let account: any;
-  let balance: any;
+  onMount(() => {
+    console.log($currContract);
+  });
 
-  async function connect() {
-    account = await $stdlib!!.getDefaultAccount();
-    await $stdlib!!.fundFromFaucet(account, $stdlib!!.parseCurrency(10));
+  let count: number = 0;
+
+  async function inc() {
+    const account = await $stdlib.getDefaultAccount();
+    count = await ctc(account).a.countUp();
   }
 
-  $: if (account) {
-    $stdlib!!.balanceOf(account).then((bal) => (balance = bal));
-  }
+  const ctc = (acc: any) => acc.contract(backend, $currContract.getInfo());
 </script>
 
 <main>
-  <Button on:click={connect}>Connect</Button>
-  {#if balance}
-    <Heading>The account has {balance}</Heading>
-  {/if}
+  <Button on:click={inc}>Increment</Button>
+  <Heading>Count is currently at {count}</Heading>
 </main>
 
 <style>
