@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [sveltekit()],
   resolve: {
     alias: {
-      "@contract": path.resolve(__dirname, "./src/contracts/index.main.mjs"),
+      "@backend": path.resolve(__dirname, "./src/contracts/index.main.mjs"),
     },
   },
 });

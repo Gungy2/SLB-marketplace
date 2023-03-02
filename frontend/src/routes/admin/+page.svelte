@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as backend from "@contract";
+  import * as backend from "@backend";
   import { onMount } from "svelte";
   import { stdlib, currContract } from "../../store.js";
   import { Button } from "flowbite-svelte";
@@ -18,10 +18,9 @@
     console.log("Starting up...");
 
     try {
-      console.log("HERE");
       await ctcA.p.Admin({
         max: 5,
-        launched: (c: any) => {
+        launched: () => {
           throw flag;
         },
       });

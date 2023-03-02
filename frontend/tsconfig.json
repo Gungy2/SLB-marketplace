@@ -12,7 +12,7 @@
     "module": "ES2022",
     "moduleResolution": "nodenext",
     "paths": {
-      "@contract": ["./src/contracts/index.main.mjs"]
+      "@backend": ["./src/contracts/index.main.mjs"]
     }
   }
   // Path aliases are handled by https://kit.svelte.dev/docs/configuration#alias
