@@ -1,9 +1,8 @@
 'reach 0.1';
-'use strict';
+// 'use strict';
 
-const ERC21 = {
-    transferFrom: Fun([Address, Address, UInt], Bool),
-    balanceOf: Fun([Address], UInt),
+const SLB = {
+    customBalance: Fun([Address], UInt)
 }
 
 const InitAssets = Object({
@@ -13,23 +12,24 @@ const InitAssets = Object({
 
 export const main = Reach.App(() => {
     const Creator = Participant('Creator', {
-        slbContractAddress: Contract,
+        slbToken: Token,
+        slbContract: Contract,
         launched: Fun([Contract], Null),
         startExchange: Fun([Contract], InitAssets)
     });
     const Retailer = API('Retailer', {
         buySLBs: Fun([UInt], Bool),
         sellSLBs: Fun([UInt], Bool),
-        depositSLBs: Fun([UInt], Bool),
-        depositTokens: Fun([UInt], Bool),
-        hello: Fun([], Bool)
+        // depositSLBs: Fun([UInt], Bool),
+        // depositTokens: Fun([UInt], Bool),
     });
     init();
 
     Creator.only(() => {
-        const slbContractAddress = declassify(interact.slbContractAddress);
+        const slbToken = declassify(interact.slbToken);
+        const slbAddress = declassify(interact.slbContract);
     });
-    Creator.publish(slbContractAddress)
+    Creator.publish(slbToken, slbAddress);
 
     commit();
 
@@ -41,124 +41,126 @@ export const main = Reach.App(() => {
     });
     Creator
         .publish(initSlbs, initTokens)
-        .pay(initTokens)
+        .pay([initTokens, [initSlbs, slbToken]])
         .check(() => {
             check(initSlbs > 0);
             check(initTokens > 0);
         });
+
+    // Initialize remote SLB Contract
+    const slbContract = remote(slbAddress, SLB);
+
     Creator.interact.launched(getContract());
 
+    // const deposits = new Map(Object({
+    //     slbs: UInt,
+    //     tokens: UInt
+    // }));
 
-    // Transfer initial assets
-    const ctcSol = remote(slbContractAddress, ERC21);
-    const _ = ctcSol.transferFrom(this, getAddress(), initSlbs);
-
-    const deposits = new Map(Object({
-        slbs: UInt,
-        tokens: UInt
-    }));
-
-    const [inv, slbs_held] = parallelReduce([initSlbs * initTokens, initSlbs])
-        .invariant(balance() >= 0)
+    const [] = parallelReduce([])
+        .invariant(balance() > 0)
+        .invariant(balance(slbToken) > 0)
+        .invariant(balance(slbToken) * balance() <= initSlbs * initTokens, "Invariant has to hold")
         .while(true)
-        .api(Retailer.buySLBs,
+        .paySpec([slbToken])
+        .api_(Retailer.buySLBs,
             (volume) => {
-                assume(volume > 0, 'Must buy at least 1 SLB');
-                assume(volume < slbs_held, 'Cannot buy more SLBs than currently in the pool');
-            },
+                check(volume > 0, 'Must buy at least 1 SLB');
+                check(volume < balance(slbToken), "Cannot buy more SLBs than currently in the pool");
+
+                const newSlbs = balance(slbToken) - volume;
+                const newTokens = muldiv(balance(), balance(slbToken), newSlbs);
+
+                check(newTokens > balance(), "SLBs cannot be free");
+                const owedTokens = newTokens - balance();
+
+                return [
+                    [owedTokens, [0, slbToken]], (apiReturn) => {
+                        transfer(volume, slbToken).to(this);
+
+                        apiReturn(true);
+                        return [];
+                    }
+                ]
+            }
+        )
+        .api_(Retailer.sellSLBs,
             (volume) => {
-                const newSlbs = slbs_held - volume;
-                const newTokens = inv / newSlbs;
+                check(volume > 0, 'Must sell at least 1 SLB');
+
+                const oldSlbs = balance(slbToken) - volume;
+                const newTokens = muldiv(balance(), oldSlbs, balance(slbToken));
+                check(newTokens > 0, "Cannot sell more SLBs than currently can be bought");
+                check(newTokens < balance(), "SLBs cannot be free");
+
                 const owedTokens = balance() - newTokens;
-                return owedTokens;
-            },
-            (volume, apiReturn) => {
-                require(volume > 0, 'Must buy at least 1 SLB');
-                require(volume < slbs_held, 'Cannot buy more SLBs than currently in the pool');
 
-                const _ = ctcSol.transferFrom(getAddress(), this, volume);
-                const newSlbs = slbs_held - volume;
+                return [
+                    [0, [volume, slbToken]], (apiReturn) => {
+                        transfer(owedTokens).to(this);
 
-                apiReturn(true);
-                return [initSlbs * balance(), newSlbs];
-            }
-        )
-        .api(Retailer.sellSLBs,
-            (volume) => {
-                assume(volume > 0, 'Must sell at least 1 SLB');
-            },
-            (_) => 0,
-            (volume, apiReturn) => {
-                require(volume > 0, 'Must sell at least 1 SLB');
-                const _ = ctcSol.transferFrom(getAddress(), this, volume);
-
-                apiReturn(true);
-                return [initSlbs * balance(), slbs_held];
-            }
-        )
-        .api(Retailer.depositSLBs,
-            (volume) => {
-                assume(volume > 0, 'Must deposit at least 1 SLB');
-            },
-            (_) => 0,
-            (volume, apiReturn) => {
-                require(volume > 0, 'Must deposit at least 1 SLB');
-
-                const _ = ctcSol.transferFrom(this, getAddress(), volume);
-
-                // Add deposit to the record
-                const {
-                    slbs,
-                    tokens
-                } = fromSome(deposits[this], {
-                    slbs: 0,
-                    tokens: 0
-                });
-                deposits[this] = {
-                    slbs: slbs + volume,
-                    tokens
-                };
-
-                apiReturn(true);
-                return [initSlbs * balance(), slbs_held + volume];
-            }
-        )
-        .api(Retailer.hello,
-            () => {},
-            () => 0,
-            (apiReturn) => {
-                apiReturn(false);
-                return [initSlbs * balance(), slbs_held];
-            }
-        )
-        .api(Retailer.depositTokens,
-            (volume) => {
-                assume(volume > 0, 'Must deposit at least 1 SLB');
-            },
-            (_) => 0,
-            (volume, apiReturn) => {
-                require(volume > 0, 'Must deposit at least 1 SLB');
-
-                const _ = ctcSol.transferFrom(this, getAddress(), volume);
-
-                // Add deposit to the record
-                const {
-                    slbs,
-                    tokens
-                } = fromSome(deposits[this], {
-                    slbs: 0,
-                    tokens: 0
-                });
-                deposits[this] = {
-                    slbs: slbs + volume,
-                    tokens
-                };
-
-                // Recompute invariant
-                apiReturn(true);
-                return [initSlbs * balance(), slbs_held];
+                        apiReturn(true);
+                        return [];
+                    }
+                ]
             }
         );
+    // .api(Retailer.depositSLBs,
+    //     (volume) => {
+    //         assume(volume > 0, 'Must deposit at least 1 SLB');
+    //     },
+    //     (_) => 0,
+    //     (volume, apiReturn) => {
+    //         require(volume > 0, 'Must deposit at least 1 SLB');
+
+    //         const _ = ctcSol.transferFrom(this, getAddress(), volume);
+
+    //         // Add deposit to the record
+    //         const {
+    //             slbs,
+    //             tokens
+    //         } = fromSome(deposits[this], {
+    //             slbs: 0,
+    //             tokens: 0
+    //         });
+    //         deposits[this] = { 
+    //             slbs: slbs + volume,
+    //             tokens
+    //         };
+
+    //         apiReturn(true);
+    //         return slbsHeld + volume;
+    //     }
+    // )
+
+    // .api(Retailer.depositTokens,
+    //     (volume) => {
+    //         assume(volume > 0, 'Must deposit at least 1 SLB');
+    //     },
+    //     (_) => 0,
+    //     (volume, apiReturn) => {
+    //         require(volume > 0, 'Must deposit at least 1 SLB');
+
+    //         const _ = ctcSol.transferFrom(this, getAddress(), volume);
+
+    //         // Add deposit to the record
+    //         const {
+    //             slbs,
+    //             tokens
+    //         } = fromSome(deposits[this], {
+    //             slbs: 0,
+    //             tokens: 0
+    //         });
+    //         deposits[this] = {
+    //             slbs: slbs + volume,
+    //             tokens
+    //         };
+
+    //         // Recompute invariant
+    //         apiReturn(true);
+    //         return slbsHeld;
+    //     }
+    // );
 
     commit();
     exit();

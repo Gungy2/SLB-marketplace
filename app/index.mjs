@@ -1,14 +1,10 @@
 import {
-    loadStdlib,
-    util
+    loadStdlib
 } from '@reach-sh/stdlib';
 import * as backend from './build/index.main.mjs';
 import {
     promises as fs
 } from "fs";
-const {
-    thread
-} = util;
 const stdlib = loadStdlib();
 
 if (stdlib.connector === 'ALGO') {
@@ -47,24 +43,20 @@ await token.mint(accAlice.getAddress(), 10);
 
 // Deploy Dapp
 const creatorToken = new ethers.Contract(token.address, remoteABI, accCreator.networkAccount);
-await token.mint(accCreator.getAddress(), 10);
+await token.mint(accCreator.getAddress(), 1000);
 console.log(`Creator now has: ${await creatorToken.balanceOf(accCreator.getAddress())}`);
 const exchange = accCreator.contract(backend);
 
-// creatorToken.approve(exchange.getContractAddress(), 10000);
-// console.log(accCreator.getAddress());
-// console.log(await exchange.getContractAddress());
-// console.log(await token.allowance(accCreator.getAddress(), await exchange.getContractAddress()));
-
 await stdlib.withDisconnect(() => exchange.p.Creator({
-    slbContractAddress: token.address,
+    slbToken: token.address,
+    slbContract: token.address,
     startExchange: async function (contract) {
-        await creatorToken.approve(contract, 6);
+        await creatorToken.approve(contract, 1000);
 
         console.log(`Allowance: ${await creatorToken.allowance(accCreator.getAddress(), contract)}`);
         return {
-            initSlbs: 6,
-            initTokens: 10,
+            initSlbs: 10,
+            initTokens: 6,
         }
     },
     launched: stdlib.disconnect
@@ -73,9 +65,16 @@ await stdlib.withDisconnect(() => exchange.p.Creator({
 console.log(`launched contract`);
 
 // Approve transaction
-// const retailer = accAlice.contract(backend, exchange.getInfo());
-// token.approve(exchange.getContractAddress(), 2);
+const retailer = accAlice.contract(backend, exchange.getInfo());
 
-// console.log("CALLING THE CONTRACT");
-// console.log(await retailer.apis.Retailer.sellSLBs(2));
-// console.log("HERE");
+console.log(`Alice now has: ${await creatorToken.balanceOf(accAlice.getAddress())} SLBs`);
+const initially = await stdlib.balanceOf(accAlice.getAddress());
+console.log((await retailer.apis.Retailer.buySLBs(4)).toString());
+console.log(`Alice now has: ${await creatorToken.balanceOf(accAlice.getAddress())}`);
+console.log(`Alice has spent: ${initially - await stdlib.balanceOf(accAlice.getAddress())} ETH`);
+
+console.log(`Alice now has: ${await creatorToken.balanceOf(accAlice.getAddress())} SLBs`);
+const initially2 = await stdlib.balanceOf(accAlice.getAddress());
+console.log((await retailer.apis.Retailer.sellSLBs(4)).toString());
+console.log(`Alice now has: ${await creatorToken.balanceOf(accAlice.getAddress())}`);
+console.log(`Alice has spent: ${initially2 - await stdlib.balanceOf(accAlice.getAddress())} ETH`);

@@ -483,4 +483,8 @@ contract SimpleToken is ERC20 {
     function mint(address account, uint256 amount) public {
         _mint(account, amount);
     }
+
+    function customBalance(address account) public view returns (uint256) {
+        return balanceOf(account);
+    }
 }
