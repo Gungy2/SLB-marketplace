@@ -1,0 +1,18 @@
+{
+  "name": "slbdexx",
+  "version": "1.0.0",
+  "description": "Decentralized exchange for SLBs.",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "run": "REACH_CONNECTOR_MODE=ETH-live ETH_NODE_URI=http://127.0.0.1:7545 REACH_ISOLATED_NETWORK=1 node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "George Ungureanu Vranceanu",
+  "license": "ISC",
+  "dependencies": {
+    "@reach-sh/stdlib": "^0.1.13-rc.3",
+    "ganache": "^7.7.7",
+    "prettier": "^2.8.7"
+  }
+}
