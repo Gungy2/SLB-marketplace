@@ -2,7 +2,7 @@
 // 'use strict';
 
 const SLB = {
-  customBalance: Fun([Address], UInt),
+  getBalance: Fun([], UInt),
 };
 
 const InitAssets = Object({
@@ -20,6 +20,7 @@ export const main = Reach.App(() => {
   const Retailer = API("Retailer", {
     buySLBs: Fun([UInt], Bool),
     sellSLBs: Fun([UInt], Bool),
+    customGetBalance: Fun([], UInt),
     // depositSLBs: Fun([UInt], Bool),
     // depositTokens: Fun([UInt], Bool),
   });
@@ -106,6 +107,15 @@ export const main = Reach.App(() => {
           transfer(owedTokens).to(this);
 
           apiReturn(true);
+          return [];
+        },
+      ];
+    })
+    .api_(Retailer.customGetBalance, () => {
+      return [
+        [0, [0, slbToken]],
+        (apiReturn) => {
+          apiReturn(slbContract.getBalance());
           return [];
         },
       ];

@@ -5,7 +5,7 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "run": "REACH_CONNECTOR_MODE=ETH-live ETH_NODE_URI=http://127.0.0.1:7545 REACH_ISOLATED_NETWORK=1 node index.js",
+    "run": " REACH_CONNECTOR_MODE=ETH-live ETH_NODE_URI=http://127.0.0.1:7545 REACH_ISOLATED_NETWORK=1 ../reach compile && node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "George Ungureanu Vranceanu",
