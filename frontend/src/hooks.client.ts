@@ -1,6 +1,6 @@
 import MyAlgoConnect from "@randlabs/myalgo-connect";
 import { get } from "svelte/store";
-import { stdlib } from "./store.js";
+import { stdlib } from "./lib/store.js";
 
 get(stdlib).setWalletFallback(
   get(stdlib).walletFallback({

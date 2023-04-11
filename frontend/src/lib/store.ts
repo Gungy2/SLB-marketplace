@@ -1,7 +1,6 @@
 import { loadStdlib } from "@reach-sh/stdlib/browser";
 import { readable, writable, type Readable, type Subscriber, type Writable } from "svelte/store";
 import { PUBLIC_PLATFORM } from "$env/static/public";
-import { ethers } from 'ethers';
 
 export const stdlib: Readable<ReturnType<typeof loadStdlib>> = readable(
   undefined,

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { currContract, stdlib } from "../store.js";
+  import { currContract, stdlib } from "../lib/store.js";
   import { Button, Heading } from "flowbite-svelte";
   import * as backend from "@backend";
   import { onMount } from "svelte";

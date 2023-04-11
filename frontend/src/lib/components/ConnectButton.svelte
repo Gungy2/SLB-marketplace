@@ -1,14 +1,27 @@
 <script lang="ts">
-  import { Button } from "flowbite-svelte";
-  import { currAccount, stdlib } from "../../store.js";
+  import { currAccount, stdlib } from "../store.js";
+  import { ProgressRadial } from "@skeletonlabs/skeleton";
 
+  let loading = false;
   async function connect() {
-    currAccount.set(await $stdlib.getDefaultAccount());
+    loading = true;
+    try {
+      currAccount.set(await $stdlib.getDefaultAccount());
+    } catch (err) {
+      console.error(err);
+    }
+    loading = false;
   }
 </script>
 
 {#if $currAccount}
-  <slot />
+  <slot name="otherButton" {...$$restProps} />
 {:else}
-  <Button on:click={connect}>Connect</Button>
+  <button {...$$restProps} on:click={connect} disabled={loading}>
+    {#if loading}
+      <span><ProgressRadial width="w-8" /></span>
+    {:else}
+      <span>Connect Wallet</span>
+    {/if}
+  </button>
 {/if}
