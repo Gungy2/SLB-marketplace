@@ -24,6 +24,9 @@ export const main = Reach.App(() => {
     // depositSLBs: Fun([UInt], Bool),
     // depositTokens: Fun([UInt], Bool),
   });
+  const V = View("Main", {
+    price: UInt,
+  });
   init();
 
   Creator.only(() => {
@@ -57,6 +60,9 @@ export const main = Reach.App(() => {
   // }));
 
   const [] = parallelReduce([])
+    .define(() => {
+      V.price.set(balance() / balance(slbToken));
+    })
     .invariant(balance() > 0)
     .invariant(balance(slbToken) > 0)
     .invariant(

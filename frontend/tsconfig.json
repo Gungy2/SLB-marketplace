@@ -12,7 +12,6 @@
     "module": "ES2022",
     "moduleResolution": "nodenext",
     "paths": {
-      "@backend": ["./src/contracts/index.main.mjs"],
       "$lib": ["./src/lib"],
       "$lib/*": ["./src/lib/*"]
     }

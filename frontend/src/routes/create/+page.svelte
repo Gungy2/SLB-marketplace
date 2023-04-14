@@ -4,6 +4,7 @@
   import Alert, { type AlertMessage } from "$lib/components/Alert.svelte";
   import * as backend from "$lib/contracts/index.main.mjs";
   import { ethers } from "ethers";
+  import { goto } from "$app/navigation";
 
   let slbAddress = "";
   let initialWei = 1;
@@ -23,7 +24,9 @@
   }
 
   async function approveSLBs(contractAddress: string, amount: number) {
-    let abi = ["function approve(address _spender, uint256 _value) public returns (bool success)"];
+    const abi = [
+      "function approve(address _spender, uint256 _value) public returns (bool success)",
+    ];
 
     let contract = new ethers.Contract(slbAddress, abi, $currAccount.networkAccount);
     await contract.approve(contractAddress, amount);
@@ -38,12 +41,7 @@
         slbContract: slbAddress,
         startExchange: async function (contractAddress: string) {
           await approveSLBs(contractAddress, initialSLBs);
-          // console.log(
-          //   `Allowance: ${await creatorToken.allowance(
-          //     accCreator.getAddress(),
-          //     contract
-          //   )}`
-          // );
+
           return {
             initSlbs: initialSLBs,
             initTokens: initialWei,
@@ -53,6 +51,7 @@
       })
     );
     console.log("CONTRACT DEPLOYED");
+    goto(`/swap/?address=${await exchange.getInfo()}`);
   }
 </script>
 
@@ -70,7 +69,7 @@
       </label>
       <label class="label mt-8">
         <span class="text-xl ml-4 font-bold">Initial SLBs</span>
-        <input value={initialSLBs} type="number" min={1} class="input text-xl px-6 py-2" />
+        <input bind:value={initialSLBs} type="number" min={1} class="input text-xl px-6 py-2" />
       </label>
       <ConnectButton class="btn text-2xl font-bold variant-filled-primary w-11/12 m-auto my-6">
         <button
