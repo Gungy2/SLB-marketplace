@@ -1,3 +1,4 @@
 .reach/
 build/
 node_modules/
+artifacts/
