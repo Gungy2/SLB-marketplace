@@ -3,29 +3,13 @@ import * as backend from "../build/index.main.mjs";
 import { promises as fs } from "fs";
 import { test, expect } from "@jest/globals";
 
-const stdlib = loadStdlib();
-
-if (stdlib.connector === "ALGO") {
-  process.exit(0);
-}
+const stdlib = loadStdlib("ETH");
 
 const { ethers } = stdlib;
 const myGasLimit = 5000000;
 
-async function init() {
-  console.log(1);
-  await sleep(1000);
-  console.log(2);
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
 async function createTestAccounts() {
-  const startingBalance = stdlib.parseCurrency(2);
+  const startingBalance = stdlib.parseCurrency(10);
   const [accAlice, accBob, accCreator] = await stdlib.newTestAccounts(
     3,
     startingBalance
@@ -38,8 +22,8 @@ async function createTestAccounts() {
   return [accAlice, accBob, accCreator];
 }
 
-async function deploySLB(accAlice, location) {
-  const startingBalance = stdlib.parseCurrency(2);
+async function deploySLB(location) {
+  const startingBalance = stdlib.parseCurrency(5);
   const [acc1, acc2, acc3] = await stdlib.newTestAccounts(3, startingBalance);
 
   const remoteCtc = JSON.parse(await fs.readFile(location));
@@ -84,9 +68,6 @@ async function deploySLB(accAlice, location) {
     );
   await newBond.wait();
 
-  const buyBond = await bond.connect(accAlice.networkAccount).mintBond(20);
-  await buyBond.wait();
-
   return bond;
 }
 
@@ -97,26 +78,28 @@ async function deployExchange(accCreator, bond, init) {
       slbToken: bond.address,
       slbContract: bond.address,
       startExchange: async function (contract) {
-        await bond.approve(contract, 10);
+        await bond.approve(contract, init.initSlbs);
         return init;
       },
       launched: stdlib.disconnect,
     })
   );
-  console.log(`launched contract`);
   return exchange;
 }
 
 test("can deploy exchange", async () => {
-  const [accAlice, accBob, accCreator] = await createTestAccounts();
-  const bond = await deploySLB(
-    accCreator,
-    "artifacts/contracts/Bond.sol/SLB_Bond.json"
-  );
+  const [accCreator] = await createTestAccounts();
+  const bond = await deploySLB("artifacts/contracts/Bond.sol/SLB_Bond.json");
+  const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
+  await mint.wait();
+
   const exchange = await deployExchange(accCreator, bond, {
     initSlbs: 10,
-    initTokens: 6,
+    initTokens: 40,
   });
+
+  const price = (await exchange.v.Main.price())[1];
+  expect(stdlib.bigNumberToNumber(price)).toBe(4);
 
   expect(
     stdlib.bigNumberToNumber(
@@ -127,38 +110,44 @@ test("can deploy exchange", async () => {
     stdlib.bigNumberToNumber(
       await stdlib.balanceOf(await exchange.getContractAddress())
     )
-  ).toBe(6);
+  ).toBe(40);
 });
 
-// // Approve transaction
-// const retailer = accAlice.contract(backend, exchange.getInfo());
+test("can buy SLBs from the exchange", async () => {
+  const [accAlice, accCreator] = await createTestAccounts();
+  const bond = await deploySLB("artifacts/contracts/Bond.sol/SLB_Bond.json");
+  const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
+  await mint.wait();
 
-// console.log(
-//   `Alice now has: ${await creatorToken.balanceOf(accAlice.getAddress())} SLBs`
-// );
-// const initially = await stdlib.balanceOf(accAlice.getAddress());
-// console.log((await retailer.apis.Retailer.buySLBs(4)).toString());
-// console.log(
-//   `Alice now has: ${await creatorToken.balanceOf(accAlice.getAddress())}`
-// );
-// console.log(
-//   `Alice has spent: ${
-//     initially - (await stdlib.balanceOf(accAlice.getAddress()))
-//   } ETH`
-// );
+  const exchange = await deployExchange(accCreator, bond, {
+    initSlbs: 20,
+    initTokens: 200,
+  });
 
-// console.log(
-//   `Alice now has: ${await creatorToken.balanceOf(accAlice.getAddress())} SLBs`
-// );
-// const initially2 = await stdlib.balanceOf(accAlice.getAddress());
-// console.log((await retailer.apis.Retailer.sellSLBs(4)).toString());
-// console.log(
-//   `Alice now has: ${await creatorToken.balanceOf(accAlice.getAddress())}`
-// );
-// console.log(
-//   `Alice has spent: ${
-//     initially2 - (await stdlib.balanceOf(accAlice.getAddress()))
-//   } ETH`
-// );
+  const retailer = accAlice.contract(backend, exchange.getInfo());
 
-// console.log(await retailer.apis.Retailer.customGetBalance());
+  await retailer.safeApis.Retailer.buySLBs(10);
+
+  const price = (await retailer.v.Main.price())[1];
+  expect(stdlib.bigNumberToNumber(price)).toBe(40);
+});
+
+test("can sell SLBs to the exchange", async () => {
+  const [accAlice, accCreator] = await createTestAccounts();
+  const bond = await deploySLB("artifacts/contracts/Bond.sol/SLB_Bond.json");
+  const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
+  await mint.wait();
+
+  const exchange = await deployExchange(accCreator, bond, {
+    initSlbs: 20,
+    initTokens: 200,
+  });
+
+  const mintAlice = await bond.connect(accAlice.networkAccount).mintBond(10);
+  await mintAlice.wait();
+  const retailer = accAlice.contract(backend, exchange.getInfo());
+
+  await retailer.safeApis.Retailer.sellSLBs(10);
+  const price = (await retailer.v.Main.price())[1];
+  expect(stdlib.bigNumberToNumber(price)).toBe(4);
+});
