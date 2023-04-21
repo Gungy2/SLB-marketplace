@@ -41,6 +41,7 @@
     "@popperjs/core": "^2.11.6",
     "@randlabs/myalgo-connect": "^1.4.2",
     "@reach-sh/stdlib": "^0.1.13-rc.3",
+    "@supabase/supabase-js": "^2.21.0",
     "classnames": "^2.3.2",
     "ethers": "^5.7.2",
     "flowbite": "^1.6.3",
