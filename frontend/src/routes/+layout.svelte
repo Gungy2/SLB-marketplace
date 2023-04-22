@@ -12,6 +12,10 @@
   import ConnectButton from "$lib/components/ConnectButton.svelte";
   import logo from "$lib/images/logo.png";
   import Home from "svelte-material-icons/Home.svelte";
+  import { computePosition, autoUpdate, flip, shift, offset, arrow } from "@floating-ui/dom";
+  import { storePopup } from "@skeletonlabs/skeleton";
+
+  storePopup.set({ computePosition, autoUpdate, flip, shift, offset, arrow });
 
   onMount(async () => {
     const accounts = await (window as any).ethereum.request({ method: "eth_accounts" });

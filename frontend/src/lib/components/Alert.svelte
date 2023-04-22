@@ -3,7 +3,8 @@
     title: string;
     message: string;
   }
-  export type Type = "error" | "success";
+  export type Type = "error" | "success" | "warning";
+  export type Variant = "filled" | "ghost";
 </script>
 
 <script lang="ts">
@@ -12,6 +13,7 @@
 
   export let alertMessage: AlertMessage | undefined;
   export let type: Type;
+  export let variant: Variant = "filled";
 
   $: if (alertMessage) {
     setTimeout(() => {
@@ -25,7 +27,7 @@
 {#if alertMessage}
   <aside
     transition:fade|local={{ duration: 200 }}
-    class={`alert fixed variant-filled-${type} left-1/4 right-1/4 bottom-10`}
+    class={`alert fixed variant-${variant}-${type} left-1/4 right-1/4 bottom-10`}
   >
     <div class="alert-message">
       <h3 class="font-bold">{alertMessage.title}</h3>

@@ -13,7 +13,8 @@
   let error: AlertMessage | undefined = undefined;
 
   async function handleDeployment() {
-    if (!/^(0x)?[0-9a-f]{40}$/i.test(slbAddress)) {
+    slbAddress = slbAddress.trim();
+    if (!/^(?:0x)?[0-9a-fA-F]{40}$/i.test(slbAddress)) {
       error = {
         title: "Invalid Address",
         message: "Check if address of the SLB contract is correct!",
