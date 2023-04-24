@@ -3,6 +3,6 @@ import type { PageLoad } from './$types.js';
 
 export const load = (async ({ params }) => {
   const id = params.id;
-  const bond = await pb.collection('bonds').getOne(id);
+  const bond = await pb.collection('bonds').getOne<Bond>(id);
   return { bond };
 }) satisfies PageLoad;

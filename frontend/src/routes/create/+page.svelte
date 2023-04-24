@@ -1,12 +1,17 @@
 <script lang="ts">
   import { currAccount, stdlib } from "$lib/store.js";
+  import type { PageData } from "./$types.js";
   import ConnectButton from "$lib/components/ConnectButton.svelte";
   import Alert, { type AlertMessage } from "$lib/components/Alert.svelte";
   import * as backend from "$lib/contracts/index.main.mjs";
-  import { ethers } from "ethers";
+  import { Contract } from "ethers";
   import { goto } from "$app/navigation";
+  import { pb } from "$lib/pocketbaseClient.js";
+  import slbContractJson from "$lib/contracts/artifacts/contracts/Bond.sol/SLB_Bond.json";
 
-  let slbAddress = "";
+  export let data: PageData;
+
+  let slbAddress = data.bondAddress;
   let initialWei = 1;
   let initialSLBs = 1;
 
@@ -21,19 +26,71 @@
       };
       return;
     }
-    await deployContract();
+    const bond = await retrieveBond();
+
+    if (bond?.exchange) {
+      error = {
+        title: "Exchange already deployed",
+        message: "Find the bond in /bonds",
+      };
+      return;
+    }
+
+    let slbContract = new Contract(slbAddress, slbContractJson.abi, $currAccount.networkAccount);
+    const exchangeAddress = await deployContract(slbContract);
+    const newBondId = await updateOrCreateBond(bond?.id, slbContract, exchangeAddress);
+    goto(`/bonds/${newBondId}`);
   }
 
-  async function approveSLBs(contractAddress: string, amount: number) {
-    const abi = [
-      "function approve(address _spender, uint256 _value) public returns (bool success)",
-    ];
+  async function retrieveBondInfo(slbContract: Contract): Promise<Bond> {
+    const [description, active_date, maturity_date, current_period, periods] = await Promise.all([
+      slbContract.description(),
+      // slbContract.kpis(),
+      slbContract.activeDate(),
+      slbContract.maturityDate(),
+      slbContract.currentPeriod(),
+      slbContract.periods(),
+    ]);
 
-    let contract = new ethers.Contract(slbAddress, abi, $currAccount.networkAccount);
-    await contract.approve(contractAddress, amount);
+    const bond: Bond = {
+      address: slbContract.address,
+      description,
+      kpis: ["cool", "nice"],
+      active_date: new Date(active_date.toNumber()),
+      maturity_date: new Date(maturity_date.toNumber()),
+      current_period: current_period.toNumber(),
+      periods: periods.toNumber(),
+    };
+    return bond;
   }
 
-  async function deployContract() {
+  async function retrieveBond(): Promise<Record<string, any> | undefined> {
+    try {
+      return await pb.collection("bonds").getFirstListItem(`address="${slbAddress}"`);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async function updateOrCreateBond(
+    bondId: string | undefined,
+    slbContract: Contract,
+    exchangeAddress: string
+  ) {
+    if (bondId) {
+      await pb.collection("bonds").update(bondId, {
+        exchange: exchangeAddress,
+      });
+      return bondId;
+    }
+    const bondInformation = { ...(await retrieveBondInfo(slbContract)), exchange: exchangeAddress };
+    console.log(bondInformation);
+
+    const createdBond = await pb.collection("bonds").create<Bond>(bondInformation);
+    return createdBond.id;
+  }
+
+  async function deployContract(slbContract: Contract): Promise<string> {
     const exchange = $currAccount.contract(backend);
 
     await $stdlib.withDisconnect(() =>
@@ -41,7 +98,7 @@
         slbToken: slbAddress,
         slbContract: slbAddress,
         startExchange: async function (contractAddress: string) {
-          await approveSLBs(contractAddress, initialSLBs);
+          await slbContract.approve(contractAddress, initialSLBs);
 
           return {
             initSlbs: initialSLBs,
@@ -51,8 +108,8 @@
         launched: $stdlib.disconnect,
       })
     );
-    console.log("CONTRACT DEPLOYED");
-    goto(`/swap/?address=${await exchange.getInfo()}`);
+    console.log("Exchange Deployed");
+    return exchange.getInfo();
   }
 </script>
 
@@ -84,5 +141,5 @@
       </ConnectButton>
     </form>
   </div>
-  <Alert alertMessage={error} type="error" />
+  <Alert bind:alertMessage={error} type="error" />
 </main>
