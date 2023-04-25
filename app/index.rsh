@@ -1,5 +1,5 @@
 "reach 0.1";
-// 'use strict';
+"use strict";
 
 const SLB = {
   getBalance: Fun([], UInt),
@@ -21,11 +21,12 @@ export const main = Reach.App(() => {
     buySLBs: Fun([UInt], Bool),
     sellSLBs: Fun([UInt], Bool),
     customGetBalance: Fun([], UInt),
-    // depositSLBs: Fun([UInt], Bool),
-    // depositTokens: Fun([UInt], Bool),
+    deposit: Fun([UInt], Bool),
+    withdraw: Fun([], Bool),
   });
   const V = View("Main", {
     price: UInt,
+    deposits: Fun([Address], UInt),
   });
   init();
 
@@ -54,21 +55,20 @@ export const main = Reach.App(() => {
 
   Creator.interact.launched(getContract());
 
-  // const deposits = new Map(Object({
-  //     slbs: UInt,
-  //     tokens: UInt
-  // }));
+  const deposits = new Map(UInt);
+  deposits[Creator] = initTokens;
 
   const [] = parallelReduce([])
     .define(() => {
       V.price.set(balance() / balance(slbToken));
+      V.deposits.set((address) => fromSome(deposits[address], 0));
     })
     .invariant(balance() > 0)
     .invariant(balance(slbToken) > 0)
-    .invariant(
-      balance(slbToken) * balance() <= initSlbs * initTokens,
-      "Invariant has to hold"
-    )
+    // .invariant(
+    //   balance(slbToken) * balance() <= initSlbs * initTokens,
+    //   "Invariant has to hold"
+    // )
     .while(true)
     .paySpec([slbToken])
     .api_(Retailer.buySLBs, (volume) => {
@@ -125,63 +125,50 @@ export const main = Reach.App(() => {
           return [];
         },
       ];
+    })
+    .api_(Retailer.deposit, (slbsToDeposit) => {
+      check(slbsToDeposit > 0, "Must deposit at least 1 SLB");
+      const tokensToDeposit = muldiv(
+        slbsToDeposit,
+        balance(),
+        balance(slbToken)
+      );
+
+      return [
+        [tokensToDeposit, [slbsToDeposit, slbToken]],
+        (apiReturn) => {
+          deposits[this] = fromSome(deposits[this], 0) + tokensToDeposit;
+          apiReturn(true);
+          return [];
+        },
+      ];
+    })
+    .api_(Retailer.withdraw, () => {
+      const depositedTokens = fromSome(deposits[this], 0);
+      check(
+        depositedTokens < balance(),
+        "You cannot withdraw due to lack of funds (tokens)!"
+      );
+      const depositedSlbs = muldiv(
+        depositedTokens,
+        balance(slbToken),
+        balance()
+      );
+      check(
+        depositedSlbs < balance(slbToken),
+        "You cannot withdraw due to lack of funds (SLBs)!"
+      );
+
+      return [
+        (apiReturn) => {
+          deposits[this] = 0;
+          transfer(depositedSlbs, slbToken).to(this);
+          transfer(depositedTokens).to(this);
+          apiReturn(true);
+          return [];
+        },
+      ];
     });
-  // .api(Retailer.depositSLBs,
-  //     (volume) => {
-  //         assume(volume > 0, 'Must deposit at least 1 SLB');
-  //     },
-  //     (_) => 0,
-  //     (volume, apiReturn) => {
-  //         require(volume > 0, 'Must deposit at least 1 SLB');
-
-  //         const _ = ctcSol.transferFrom(this, getAddress(), volume);
-
-  //         // Add deposit to the record
-  //         const {
-  //             slbs,
-  //             tokens
-  //         } = fromSome(deposits[this], {
-  //             slbs: 0,
-  //             tokens: 0
-  //         });
-  //         deposits[this] = {
-  //             slbs: slbs + volume,
-  //             tokens
-  //         };
-
-  //         apiReturn(true);
-  //         return slbsHeld + volume;
-  //     }
-  // )
-
-  // .api(Retailer.depositTokens,
-  //     (volume) => {
-  //         assume(volume > 0, 'Must deposit at least 1 SLB');
-  //     },
-  //     (_) => 0,
-  //     (volume, apiReturn) => {
-  //         require(volume > 0, 'Must deposit at least 1 SLB');
-
-  //         const _ = ctcSol.transferFrom(this, getAddress(), volume);
-
-  //         // Add deposit to the record
-  //         const {
-  //             slbs,
-  //             tokens
-  //         } = fromSome(deposits[this], {
-  //             slbs: 0,
-  //             tokens: 0
-  //         });
-  //         deposits[this] = {
-  //             slbs: slbs + volume,
-  //             tokens
-  //         };
-
-  //         // Recompute invariant
-  //         apiReturn(true);
-  //         return slbsHeld;
-  //     }
-  // );
 
   commit();
   exit();
