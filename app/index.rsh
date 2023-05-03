@@ -13,6 +13,7 @@ const InitAssets = Object({
 export const main = Reach.App(() => {
   const Creator = Participant("Creator", {
     slbToken: Token,
+    stableToken: Token,
     slbContract: Contract,
     launched: Fun([Contract], Null),
     startExchange: Fun([Contract], InitAssets),
@@ -32,9 +33,11 @@ export const main = Reach.App(() => {
 
   Creator.only(() => {
     const slbToken = declassify(interact.slbToken);
+    const stableToken = declassify(interact.stableToken);
     const slbAddress = declassify(interact.slbContract);
+    check(slbToken != stableToken);
   });
-  Creator.publish(slbToken, slbAddress);
+  Creator.publish(slbToken, slbAddress, stableToken);
 
   commit();
 
@@ -44,7 +47,7 @@ export const main = Reach.App(() => {
     );
   });
   Creator.publish(initSlbs, initTokens)
-    .pay([initTokens, [initSlbs, slbToken]])
+    .pay([0, [initSlbs, slbToken], [initTokens, stableToken]])
     .check(() => {
       check(initSlbs > 0);
       check(initTokens > 0);
@@ -60,17 +63,18 @@ export const main = Reach.App(() => {
 
   const [] = parallelReduce([])
     .define(() => {
-      V.price.set(balance() / balance(slbToken));
+      V.price.set(balance(stableToken) / balance(slbToken));
       V.deposits.set((address) => fromSome(deposits[address], 0));
     })
-    .invariant(balance() > 0)
+    .invariant(balance(stableToken) > 0)
     .invariant(balance(slbToken) > 0)
+    .invariant(balance() == 0)
     // .invariant(
     //   balance(slbToken) * balance() <= initSlbs * initTokens,
     //   "Invariant has to hold"
     // )
     .while(true)
-    .paySpec([slbToken])
+    .paySpec([slbToken, stableToken])
     .api_(Retailer.buySLBs, (volume) => {
       check(volume > 0, "Must buy at least 1 SLB");
       check(
@@ -79,13 +83,17 @@ export const main = Reach.App(() => {
       );
 
       const newSlbs = balance(slbToken) - volume;
-      const newTokens = muldiv(balance(), balance(slbToken), newSlbs);
+      const newTokens = muldiv(
+        balance(stableToken),
+        balance(slbToken),
+        newSlbs
+      );
 
-      check(newTokens > balance(), "SLBs cannot be free");
-      const owedTokens = newTokens - balance();
+      check(newTokens > balance(stableToken), "SLBs cannot be free");
+      const owedTokens = newTokens - balance(stableToken);
 
       return [
-        [owedTokens, [0, slbToken]],
+        [0, [0, slbToken], [owedTokens, stableToken]],
         (apiReturn) => {
           transfer(volume, slbToken).to(this);
 
@@ -98,19 +106,23 @@ export const main = Reach.App(() => {
       check(volume > 0, "Must sell at least 1 SLB");
 
       const oldSlbs = balance(slbToken) - volume;
-      const newTokens = muldiv(balance(), oldSlbs, balance(slbToken));
+      const newTokens = muldiv(
+        balance(stableToken),
+        oldSlbs,
+        balance(slbToken)
+      );
       check(
         newTokens > 0,
         "Cannot sell more SLBs than currently can be bought"
       );
-      check(newTokens < balance(), "SLBs cannot be free");
+      check(newTokens < balance(stableToken), "SLBs cannot be free");
 
-      const owedTokens = balance() - newTokens;
+      const owedTokens = balance(stableToken) - newTokens;
 
       return [
-        [0, [volume, slbToken]],
+        [0, [volume, slbToken], [0, stableToken]],
         (apiReturn) => {
-          transfer(owedTokens).to(this);
+          transfer(owedTokens, stableToken).to(this);
 
           apiReturn(true);
           return [];
@@ -119,7 +131,7 @@ export const main = Reach.App(() => {
     })
     .api_(Retailer.customGetBalance, () => {
       return [
-        [0, [0, slbToken]],
+        [0, [0, slbToken], [0, stableToken]],
         (apiReturn) => {
           apiReturn(slbContract.getBalance());
           return [];
@@ -130,12 +142,12 @@ export const main = Reach.App(() => {
       check(slbsToDeposit > 0, "Must deposit at least 1 SLB");
       const tokensToDeposit = muldiv(
         slbsToDeposit,
-        balance(),
+        balance(stableToken),
         balance(slbToken)
       );
 
       return [
-        [tokensToDeposit, [slbsToDeposit, slbToken]],
+        [0, [slbsToDeposit, slbToken], [tokensToDeposit, stableToken]],
         (apiReturn) => {
           deposits[this] = fromSome(deposits[this], 0) + tokensToDeposit;
           apiReturn(true);
@@ -146,13 +158,13 @@ export const main = Reach.App(() => {
     .api_(Retailer.withdraw, () => {
       const depositedTokens = fromSome(deposits[this], 0);
       check(
-        depositedTokens < balance(),
+        depositedTokens < balance(stableToken),
         "You cannot withdraw due to lack of funds (tokens)!"
       );
       const depositedSlbs = muldiv(
         depositedTokens,
         balance(slbToken),
-        balance()
+        balance(stableToken)
       );
       check(
         depositedSlbs < balance(slbToken),
@@ -163,7 +175,7 @@ export const main = Reach.App(() => {
         (apiReturn) => {
           deposits[this] = 0;
           transfer(depositedSlbs, slbToken).to(this);
-          transfer(depositedTokens).to(this);
+          transfer(depositedTokens, stableToken).to(this);
           apiReturn(true);
           return [];
         },

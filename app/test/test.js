@@ -2,7 +2,6 @@ import { loadStdlib } from "@reach-sh/stdlib";
 import * as backend from "../build/index.main.mjs";
 import { promises as fs } from "fs";
 import { test, expect } from "@jest/globals";
-import { log } from "console";
 
 const stdlib = loadStdlib("ETH");
 
@@ -73,12 +72,13 @@ async function deploySLB(location) {
   return bond;
 }
 
-async function deployExchange(accCreator, bond, init) {
+async function deployExchange(accCreator, bond, stableCoin, init) {
   const exchange = accCreator.contract(backend);
   await stdlib.withDisconnect(() =>
     exchange.p.Creator({
       slbToken: bond.address,
       slbContract: bond.address,
+      stableToken: stableCoin.id,
       startExchange: async function (contract) {
         await bond.approve(contract, init.initSlbs);
         return init;
@@ -89,13 +89,18 @@ async function deployExchange(accCreator, bond, init) {
   return exchange;
 }
 
+async function deployStableCoin(accCreator) {
+  return await stdlib.launchToken(accCreator, "stable coin", "STC");
+}
+
 test("can deploy exchange", async () => {
   const [accCreator] = await createTestAccounts();
   const bond = await deploySLB(SLB_LOCATION);
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 
-  const exchange = await deployExchange(accCreator, bond, {
+  const stableCoin = await deployStableCoin(accCreator);
+  const exchange = await deployExchange(accCreator, bond, stableCoin, {
     initSlbs: 10,
     initTokens: 40,
   });
@@ -110,7 +115,7 @@ test("can deploy exchange", async () => {
   ).toBe(10);
   expect(
     stdlib.bigNumberToNumber(
-      await stdlib.balanceOf(await exchange.getContractAddress())
+      await stdlib.balanceOf(await exchange.getContractAddress(), stableCoin.id)
     )
   ).toBe(40);
 });
@@ -121,12 +126,14 @@ test("can buy SLBs from the exchange", async () => {
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 
-  const exchange = await deployExchange(accCreator, bond, {
+  const stableCoin = await deployStableCoin(accCreator);
+  const exchange = await deployExchange(accCreator, bond, stableCoin, {
     initSlbs: 20,
     initTokens: 200,
   });
 
   const retailer = accAlice.contract(backend, exchange.getInfo());
+  stableCoin.mint(accAlice, 200);
 
   await retailer.apis.Retailer.buySLBs(10);
   expect(
@@ -136,7 +143,7 @@ test("can buy SLBs from the exchange", async () => {
   ).toBe(10);
   expect(
     stdlib.bigNumberToNumber(
-      await stdlib.balanceOf(await exchange.getContractAddress())
+      await stdlib.balanceOf(await exchange.getContractAddress(), stableCoin.id)
     )
   ).toBe(400);
 
@@ -150,7 +157,8 @@ test("can sell SLBs to the exchange", async () => {
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 
-  const exchange = await deployExchange(accCreator, bond, {
+  const stableCoin = await deployStableCoin(accCreator);
+  const exchange = await deployExchange(accCreator, bond, stableCoin, {
     initSlbs: 20,
     initTokens: 200,
   });
@@ -167,7 +175,7 @@ test("can sell SLBs to the exchange", async () => {
   ).toBe(30);
   expect(
     stdlib.bigNumberToNumber(
-      await stdlib.balanceOf(await exchange.getContractAddress())
+      await stdlib.balanceOf(await exchange.getContractAddress(), stableCoin.id)
     )
   ).toBe(133);
 
@@ -181,7 +189,8 @@ test("can deposit on the exchange", async () => {
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 
-  const exchange = await deployExchange(accCreator, bond, {
+  const stableCoin = await deployStableCoin(accCreator);
+  const exchange = await deployExchange(accCreator, bond, stableCoin, {
     initSlbs: 20,
     initTokens: 200,
   });
@@ -189,6 +198,7 @@ test("can deposit on the exchange", async () => {
   const mintAlice = await bond.connect(accAlice.networkAccount).mintBond(10);
   await mintAlice.wait();
   const retailer = accAlice.contract(backend, exchange.getInfo());
+  stableCoin.mint(accAlice, 200);
 
   await retailer.apis.Retailer.deposit(10);
   expect(
@@ -198,7 +208,7 @@ test("can deposit on the exchange", async () => {
   ).toBe(30);
   expect(
     stdlib.bigNumberToNumber(
-      await stdlib.balanceOf(await exchange.getContractAddress())
+      await stdlib.balanceOf(await exchange.getContractAddress(), stableCoin.id)
     )
   ).toBe(300);
   expect(
@@ -214,7 +224,8 @@ test("can withdraw from the exchange", async () => {
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 
-  const exchange = await deployExchange(accCreator, bond, {
+  const stableCoin = await deployStableCoin(accCreator);
+  const exchange = await deployExchange(accCreator, bond, stableCoin, {
     initSlbs: 20,
     initTokens: 200,
   });
@@ -222,9 +233,10 @@ test("can withdraw from the exchange", async () => {
   const mintAlice = await bond.connect(accAlice.networkAccount).mintBond(10);
   await mintAlice.wait();
   const retailer = accAlice.contract(backend, exchange.getInfo());
+  stableCoin.mint(accAlice, 200);
 
   await retailer.apis.Retailer.deposit(10);
-  console.log(await retailer.apis.Retailer.withdraw());
+  await retailer.apis.Retailer.withdraw();
 
   expect(
     stdlib.bigNumberToNumber(
@@ -233,7 +245,7 @@ test("can withdraw from the exchange", async () => {
   ).toBe(20);
   expect(
     stdlib.bigNumberToNumber(
-      await stdlib.balanceOf(await exchange.getContractAddress())
+      await stdlib.balanceOf(await exchange.getContractAddress(), stableCoin.id)
     )
   ).toBe(200);
   expect(
