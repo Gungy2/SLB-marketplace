@@ -3,16 +3,17 @@
   import type { PageData } from "./$types.js";
   import ConnectButton from "$lib/components/ConnectButton.svelte";
   import Alert, { type AlertMessage } from "$lib/components/Alert.svelte";
-  import * as backend from "$lib/contracts/index.main.mjs";
+  import { PUBLIC_STABLECOIN_ADDRESS } from "$env/static/public";
+  import * as backend from "slbdexx/build/index.main.mjs";
   import { Contract } from "ethers";
   import { goto } from "$app/navigation";
   import { pb } from "$lib/pocketbaseClient.js";
-  import slbContractJson from "$lib/contracts/artifacts/contracts/Bond.sol/SLB_Bond.json";
+  import slbContractJson from "contracts/artifacts/contracts/bond.sol/SLB_Bond.json";
 
   export let data: PageData;
 
   let slbAddress = data.bondAddress;
-  let initialWei = 1;
+  let initialCoins = 1;
   let initialSLBs = 1;
 
   let error: AlertMessage | undefined = undefined;
@@ -97,12 +98,23 @@
       exchange.p.Creator({
         slbToken: slbAddress,
         slbContract: slbAddress,
+        stableToken: PUBLIC_STABLECOIN_ADDRESS,
         startExchange: async function (contractAddress: string) {
           await slbContract.approve(contractAddress, initialSLBs);
 
+          let abi = [
+            "function approve(address _spender, uint256 _value) public returns (bool success)",
+          ];
+          const stableCoinContract = new Contract(
+            PUBLIC_STABLECOIN_ADDRESS,
+            abi,
+            $currAccount.networkAccount
+          );
+          await stableCoinContract.approve(contractAddress, initialCoins);
+
           return {
             initSlbs: initialSLBs,
-            initTokens: initialWei,
+            initTokens: initialCoins,
           };
         },
         launched: $stdlib.disconnect,
@@ -122,8 +134,8 @@
         <input bind:value={slbAddress} class="input text-xl px-6 py-2" />
       </label>
       <label class="label mt-8">
-        <span class="text-xl ml-4 font-bold">Initial Wei</span>
-        <input bind:value={initialWei} type="number" min={1} class="input text-xl px-6 py-2" />
+        <span class="text-xl ml-4 font-bold">Initial USDC</span>
+        <input bind:value={initialCoins} type="number" min={1} class="input text-xl px-6 py-2" />
       </label>
       <label class="label mt-8">
         <span class="text-xl ml-4 font-bold">Initial SLBs</span>

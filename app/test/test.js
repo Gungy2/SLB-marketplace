@@ -1,13 +1,12 @@
 import { loadStdlib } from "@reach-sh/stdlib";
 import * as backend from "../build/index.main.mjs";
-import { promises as fs } from "fs";
 import { test, expect } from "@jest/globals";
+import bond_json from "contracts/artifacts/contracts/bond.sol/SLB_Bond.json";
 
 const stdlib = loadStdlib("ETH");
 
 const { ethers } = stdlib;
 const myGasLimit = 5000000;
-const SLB_LOCATION = "artifacts/contracts/Bond.sol/SLB_Bond.json";
 
 async function createTestAccounts() {
   const startingBalance = stdlib.parseCurrency(10);
@@ -23,13 +22,12 @@ async function createTestAccounts() {
   return [accAlice, accBob, accCreator];
 }
 
-async function deploySLB(location) {
+async function deploySLB() {
   const startingBalance = stdlib.parseCurrency(5);
   const [acc1, acc2, acc3] = await stdlib.newTestAccounts(3, startingBalance);
 
-  const remoteCtc = JSON.parse(await fs.readFile(location));
-  const remoteABI = remoteCtc["abi"];
-  const remoteBytecode = remoteCtc["bytecode"];
+  const remoteABI = bond_json["abi"];
+  const remoteBytecode = bond_json["bytecode"];
   const factory = new ethers.ContractFactory(
     remoteABI,
     remoteBytecode,
@@ -95,7 +93,7 @@ async function deployStableCoin(accCreator) {
 
 test("can deploy exchange", async () => {
   const [accCreator] = await createTestAccounts();
-  const bond = await deploySLB(SLB_LOCATION);
+  const bond = await deploySLB();
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 
@@ -122,7 +120,7 @@ test("can deploy exchange", async () => {
 
 test("can buy SLBs from the exchange", async () => {
   const [accAlice, accCreator] = await createTestAccounts();
-  const bond = await deploySLB(SLB_LOCATION);
+  const bond = await deploySLB();
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 
@@ -153,7 +151,7 @@ test("can buy SLBs from the exchange", async () => {
 
 test("can sell SLBs to the exchange", async () => {
   const [accAlice, accCreator] = await createTestAccounts();
-  const bond = await deploySLB(SLB_LOCATION);
+  const bond = await deploySLB();
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 
@@ -185,7 +183,7 @@ test("can sell SLBs to the exchange", async () => {
 
 test("can deposit on the exchange", async () => {
   const [accAlice, accCreator] = await createTestAccounts();
-  const bond = await deploySLB(SLB_LOCATION);
+  const bond = await deploySLB();
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 
@@ -220,7 +218,7 @@ test("can deposit on the exchange", async () => {
 
 test("can withdraw from the exchange", async () => {
   const [accAlice, accCreator] = await createTestAccounts();
-  const bond = await deploySLB(SLB_LOCATION);
+  const bond = await deploySLB();
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 

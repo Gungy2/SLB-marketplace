@@ -52,3 +52,5 @@ declare module '*.svg?dataurl=unenc' {
   const content: string
   export default content
 }
+
+declare module 'slbdexx/build/index.main.mjs';

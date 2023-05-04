@@ -1,7 +1,7 @@
 <script lang="ts">
   import { currAccount, stdlib } from "$lib/store.js";
   import ConnectButton from "$lib/components/ConnectButton.svelte";
-  import * as backend from "$lib/contracts/index.main.mjs";
+  import * as backend from "slbdexx/build/index.main.mjs";
   import { onMount } from "svelte";
   import Arrow from "$lib/images/next-arrow.svg?component";
 
@@ -33,7 +33,7 @@
     if (!retailer) {
       return;
     }
-    price = $stdlib.bigNumberToNumber((await retailer.v.Main.price())[1] ?? 0);
+    price = $stdlib.bigNumberToNumber((await retailer.unsafeViews.Main.price()) ?? 0);
   }
 
   async function handleClick() {
@@ -77,9 +77,9 @@
       <Arrow class={`w-20 h-auto mt-4 mb-2 transition-all ${arrowStyles(isBuying)}`} />
     </button>
     <label class="label w-full">
-      <span class="text-xl ml-4 font-bold">Approx. ETH</span>
+      <span class="text-xl ml-4 font-bold">Approx. USDC</span>
       <div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
-        <div class="input-group-shim">WEI</div>
+        <div class="input-group-shim">USDC</div>
         <input value={(price ?? 0) * slbs} type="number" readonly class="transition-all" />
       </div>
     </label>

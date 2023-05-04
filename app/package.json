@@ -5,17 +5,17 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
+    "preinstall": "npx only-allow pnpm",
     "run": " REACH_CONNECTOR_MODE=ETH-live ETH_NODE_URI=http://127.0.0.1:7545 REACH_ISOLATED_NETWORK=1 ../reach compile && node index.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "author": "George Ungureanu Vranceanu",
   "license": "ISC",
-  "dependencies": {
-    "@reach-sh/stdlib": "^0.1.13-rc.3",
-    "ganache": "^7.7.7",
-    "prettier": "^2.8.7"
-  },
   "devDependencies": {
-    "jest": "^29.5.0"
+    "@reach-sh/stdlib": "^0.1.13-rc.3",
+    "contracts": "workspace:*",
+    "ganache": "^7.7.7",
+    "jest": "^29.5.0",
+    "prettier": "^2.8.7"
   }
 }
