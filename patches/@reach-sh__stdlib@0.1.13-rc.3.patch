@@ -1,0 +1,21 @@
+diff --git a/package.json b/package.json
+index 2911b70a12f42c2eb5abb131457217cd5dfc7ecd..3c9c7bf72d62d567cb537a3e36fde57e814508ef 100644
+--- a/package.json
++++ b/package.json
+@@ -11,6 +11,16 @@
+     "*.mjs",
+     "*.d.ts"
+   ],
++  "exports": {
++    ".": {
++      "types": "./types/index.d.ts",
++      "default": "./dist/cjs/index.js"
++    },
++    "./browser": {
++      "types": "./dist/browser/index.d.ts",
++      "default": "./dist/browser/reachsdk.min.js"
++    }
++  },
+   "devDependencies": {
+     "@types/await-timeout": "^0.3.1",
+     "@types/express": "^4.17.1",

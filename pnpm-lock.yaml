@@ -1,12 +1,19 @@
 lockfileVersion: '6.0'
 
+patchedDependencies:
+  '@reach-sh/stdlib@0.1.13-rc.3':
+    hash: nik44k5235z7nl2vxdqhypzani
+    path: patches/@reach-sh__stdlib@0.1.13-rc.3.patch
+
 importers:
+
+  .: {}
 
   app:
     devDependencies:
       '@reach-sh/stdlib':
         specifier: ^0.1.13-rc.3
-        version: 0.1.13-rc.3
+        version: 0.1.13-rc.3(patch_hash=nik44k5235z7nl2vxdqhypzani)
       contracts:
         specifier: workspace:*
         version: link:../contracts/ethereum
@@ -60,7 +67,7 @@ importers:
         version: 1.4.2
       '@reach-sh/stdlib':
         specifier: ^0.1.13-rc.3
-        version: 0.1.13-rc.3
+        version: 0.1.13-rc.3(patch_hash=nik44k5235z7nl2vxdqhypzani)
       classnames:
         specifier: ^2.3.2
         version: 2.3.2
@@ -1764,7 +1771,7 @@ packages:
       '@randlabs/communication-bridge': 1.0.1
     dev: false
 
-  /@reach-sh/stdlib@0.1.13-rc.3:
+  /@reach-sh/stdlib@0.1.13-rc.3(patch_hash=nik44k5235z7nl2vxdqhypzani):
     resolution: {integrity: sha512-dSqxzLwzOHic23AqeC9igl+ZqjmOAV2FAzvpOT6m3sqTKXkISnHi63eCL3dYUj+PiZk5BeiAdaSjBRMklwZDIQ==}
     dependencies:
       algosdk: 1.24.1
@@ -1783,6 +1790,7 @@ packages:
       - encoding
       - supports-color
       - utf-8-validate
+    patched: true
 
   /@scure/base@1.1.1:
     resolution: {integrity: sha512-ZxOhsSyxYwLJj3pLZCefNitxsj093tb2vq90mp2txoYeBqbcjDjqFhyM8eUjq/uFm6zJ+mUuqxlS2FkuSY1MTA==}
