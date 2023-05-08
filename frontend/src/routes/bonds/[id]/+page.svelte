@@ -67,8 +67,8 @@
     <Tab bind:group={tabSet} name="Traditional Exchange" value={1}>Traditional Exchange</Tab>
     <svelte:fragment slot="panel">
       {#if tabSet === 0}
-        {#if bond.exchange}
-          <SwapCard address={bond.exchange} />
+        {#if data.exchange}
+          <SwapCard exchange={data.exchange} />
         {:else}
           <a
             href={`/create?address=${bond.address}`}

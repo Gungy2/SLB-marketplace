@@ -5,7 +5,7 @@
   import { onMount } from "svelte";
   import Arrow from "$lib/images/next-arrow.svg?component";
 
-  export let address: string;
+  export let exchange: Exchange;
 
   let slbs: number = 1;
   let depositSlbs: number = 1;
@@ -26,7 +26,7 @@
     if (!acc) {
       return;
     }
-    retailer = acc.contract(backend, address);
+    retailer = acc.contract(backend, exchange.address);
   });
 
   async function fetchPrice() {

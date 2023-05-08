@@ -3,60 +3,88 @@
   import type { PageData } from "./$types.js";
   import ConnectButton from "$lib/components/ConnectButton.svelte";
   import Alert, { type AlertMessage } from "$lib/components/Alert.svelte";
-  import { PUBLIC_STABLECOIN_ADDRESS } from "$env/static/public";
   import * as backend from "slbdexx/build/index.main.mjs";
   import { Contract } from "ethers";
   import { goto } from "$app/navigation";
   import { pb } from "$lib/pocketbaseClient.js";
   import slbContractJson from "contracts/artifacts/contracts/bond.sol/SLB_Bond.json";
 
+  const ADDRESS_REGEX = /^(?:0x)?[0-9a-fA-F]{40}$/i;
   export let data: PageData;
 
   let slbAddress = data.bondAddress;
   let initialCoins = 1;
   let initialSLBs = 1;
+  let selectedStablecoinId: string;
 
   let error: AlertMessage | undefined = undefined;
 
   async function handleDeployment() {
-    slbAddress = slbAddress.trim();
-    if (!/^(?:0x)?[0-9a-fA-F]{40}$/i.test(slbAddress)) {
+    try {
+      slbAddress = slbAddress.trim();
+      if (!ADDRESS_REGEX.test(slbAddress)) {
+        error = {
+          title: "Invalid Address",
+          message: "Check if address of the SLB contract is correct!",
+        };
+        return;
+      }
+      const bond = await retrieveBond();
+      if (bond) {
+        const existingExchange = await pb
+          .collection("exchanges")
+          .getFirstListItem<Exchange>(`bond="${bond.id}" && stable_coin="${selectedStablecoinId}"`);
+        if (existingExchange) {
+          error = {
+            title: "Exchange already exists",
+            message:
+              "The exchange with the specific combination of the bond and the stable coin already exists!",
+          };
+          return;
+        }
+      }
+
+      let slbContract = new Contract(slbAddress, slbContractJson.abi, $currAccount.networkAccount);
+      const exchangeAddress = await deployContract(slbContract);
+      const newBondId = bond?.id ?? (await createBondRecord(slbContract));
+      await createExchangeRecord(exchangeAddress, newBondId, selectedStablecoinId);
+      goto(`/bonds/${newBondId}`);
+    } catch (e) {
+      console.error(e);
+
       error = {
-        title: "Invalid Address",
-        message: "Check if address of the SLB contract is correct!",
+        title: "Something went wrong!",
+        message: "Please try again after refreshing the page!",
       };
       return;
     }
-    const bond = await retrieveBond();
+  }
 
-    if (bond?.exchange) {
-      error = {
-        title: "Exchange already deployed",
-        message: "Find the bond in /bonds",
-      };
-      return;
-    }
+  async function createExchangeRecord(address: string, bondId: string, stableCoinId: string) {
+    const data = {
+      address,
+      bond: bondId,
+      stable_coin: stableCoinId,
+    };
 
-    let slbContract = new Contract(slbAddress, slbContractJson.abi, $currAccount.networkAccount);
-    const exchangeAddress = await deployContract(slbContract);
-    const newBondId = await updateOrCreateBond(bond?.id, slbContract, exchangeAddress);
-    goto(`/bonds/${newBondId}`);
+    await pb.collection("exchanges").create<Exchange>(data);
   }
 
   async function retrieveBondInfo(slbContract: Contract): Promise<Bond> {
-    const [description, active_date, maturity_date, current_period, periods] = await Promise.all([
-      slbContract.description(),
-      // slbContract.kpis(),
-      slbContract.activeDate(),
-      slbContract.maturityDate(),
-      slbContract.currentPeriod(),
-      slbContract.periods(),
-    ]);
+    const [description, kpis, active_date, maturity_date, current_period, periods] =
+      await Promise.all([
+        slbContract.description(),
+        slbContract.getKPIs(),
+        slbContract.activeDate(),
+        slbContract.maturityDate(),
+        slbContract.currentPeriod(),
+        slbContract.periods(),
+      ]);
 
     const bond: Bond = {
       address: slbContract.address,
       description,
-      kpis: ["cool", "nice"],
+      kpis: transformKPIs(kpis),
       active_date: new Date(active_date.toNumber()),
       maturity_date: new Date(maturity_date.toNumber()),
       current_period: current_period.toNumber(),
@@ -65,52 +93,38 @@
     return bond;
   }
 
-  async function retrieveBond(): Promise<Record<string, any> | undefined> {
+  function transformKPIs(kpis: number[]) {
+    const KPI_MAP = ["NONE", "GHG", "RECYCLED", "SOCIAL"];
+    return kpis.map((index) => KPI_MAP[index]);
+  }
+
+  async function retrieveBond() {
     try {
-      return await pb.collection("bonds").getFirstListItem(`address="${slbAddress}"`);
+      return await pb.collection("bonds").getFirstListItem<Bond>(`address="${slbAddress}"`);
     } catch {
       return undefined;
     }
   }
 
-  async function updateOrCreateBond(
-    bondId: string | undefined,
-    slbContract: Contract,
-    exchangeAddress: string
-  ) {
-    if (bondId) {
-      await pb.collection("bonds").update(bondId, {
-        exchange: exchangeAddress,
-      });
-      return bondId;
-    }
-    const bondInformation = { ...(await retrieveBondInfo(slbContract)), exchange: exchangeAddress };
+  async function createBondRecord(slbContract: Contract) {
+    const bondInformation = await retrieveBondInfo(slbContract);
     console.log(bondInformation);
 
     const createdBond = await pb.collection("bonds").create<Bond>(bondInformation);
-    return createdBond.id;
+    return createdBond.id!;
   }
 
   async function deployContract(slbContract: Contract): Promise<string> {
     const exchange = $currAccount.contract(backend);
+    const stableCoin = data.stableCoins.find((coin) => coin.id == selectedStablecoinId);
 
     await $stdlib.withDisconnect(() =>
       exchange.p.Creator({
         slbToken: slbAddress,
         slbContract: slbAddress,
-        stableToken: PUBLIC_STABLECOIN_ADDRESS,
+        stableToken: stableCoin!!.address,
         startExchange: async function (contractAddress: string) {
           await slbContract.approve(contractAddress, initialSLBs);
-
-          let abi = [
-            "function approve(address _spender, uint256 _value) public returns (bool success)",
-          ];
-          const stableCoinContract = new Contract(
-            PUBLIC_STABLECOIN_ADDRESS,
-            abi,
-            $currAccount.networkAccount
-          );
-          await stableCoinContract.approve(contractAddress, initialCoins);
 
           return {
             initSlbs: initialSLBs,
@@ -130,16 +144,25 @@
     <h2 class="card-header m-4 font-bold">Deploy DEX Contract</h2>
     <form class="flex flex-col p-4" action="">
       <label class="label">
-        <span class="text-xl ml-4 font-bold">SLB Contract Address</span>
+        <span class="text-xl ml-2 font-bold">SLB Contract Address</span>
         <input bind:value={slbAddress} class="input text-xl px-6 py-2" />
       </label>
       <label class="label mt-8">
-        <span class="text-xl ml-4 font-bold">Initial USDC</span>
+        <span class="text-xl ml-2 font-bold">Initial SLBs</span>
+        <input bind:value={initialSLBs} type="number" min={1} class="input text-xl px-6 py-2" />
+      </label>
+      <label class="label mt-8">
+        <span class="text-xl ml-2 font-bold">Initial Coins</span>
         <input bind:value={initialCoins} type="number" min={1} class="input text-xl px-6 py-2" />
       </label>
       <label class="label mt-8">
-        <span class="text-xl ml-4 font-bold">Initial SLBs</span>
-        <input bind:value={initialSLBs} type="number" min={1} class="input text-xl px-6 py-2" />
+        <span class="text-xl ml-2 font-bold">Stable Coin Used</span>
+
+        <select bind:value={selectedStablecoinId} class="select">
+          {#each data.stableCoins as stableCoin}
+            <option value={stableCoin.id}>{stableCoin.symbol} ({stableCoin.name})</option>
+          {/each}
+        </select>
       </label>
       <ConnectButton class="btn text-2xl font-bold variant-filled-primary w-11/12 m-auto my-6">
         <button
