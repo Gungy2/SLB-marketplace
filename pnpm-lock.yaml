@@ -41,6 +41,12 @@ importers:
       '@openzeppelin/contracts':
         specifier: ^4.8.2
         version: 4.8.2
+      chai:
+        specifier: ^4.3.7
+        version: 4.3.7
+      chai-as-promised:
+        specifier: ^7.1.1
+        version: 7.1.1(chai@4.3.7)
       ethers:
         specifier: ^5.7.2
         version: 5.7.2
