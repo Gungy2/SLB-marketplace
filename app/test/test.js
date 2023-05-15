@@ -1,7 +1,7 @@
 import { loadStdlib } from "@reach-sh/stdlib";
 import * as backend from "../build/index.main.mjs";
 import { test, expect } from "@jest/globals";
-import bond_json from "contracts/artifacts/contracts/bond.sol/SLB_Bond.json";
+import bond_json from "contracts/artifacts/contracts/SLB_Bond.sol/SLB_Bond.json";
 import ganache from "ganache";
 
 const stdlib = loadStdlib("ETH");

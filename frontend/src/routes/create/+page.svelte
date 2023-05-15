@@ -7,7 +7,7 @@
   import { Contract } from "ethers";
   import { goto } from "$app/navigation";
   import { pb } from "$lib/pocketbaseClient.js";
-  import slbContractJson from "contracts/artifacts/contracts/bond.sol/SLB_Bond.json";
+  import slbContractJson from "contracts/artifacts/contracts/SLB_Bond.sol/SLB_Bond.json";
 
   const ADDRESS_REGEX = /^(?:0x)?[0-9a-fA-F]{40}$/i;
   export let data: PageData;

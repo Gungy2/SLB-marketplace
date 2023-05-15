@@ -1,6 +1,5 @@
 import { loadStdlib } from "@reach-sh/stdlib";
 import * as backend from "./build/index.main.mjs";
-import { promises as fs } from "fs";
 
 const stdlib = loadStdlib();
 
