@@ -12,8 +12,11 @@ interface Bond {
 interface Exchange {
   id?: string,
   address: string,
-  bond: Bond,
-  stable_coin: StableCoin,
+  expand: {
+    bond: Bond,
+    stable_coin: StableCoin,
+  },
+  amm: boolean,
 }
 
 interface StableCoin {

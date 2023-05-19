@@ -4,10 +4,12 @@
   import ConnectButton from "$lib/components/ConnectButton.svelte";
   import Alert, { type AlertMessage } from "$lib/components/Alert.svelte";
   import * as backend from "slbdexx/build/index.main.mjs";
-  import { Contract } from "ethers";
+  import { Contract, ContractFactory, ethers } from "ethers";
   import { goto } from "$app/navigation";
   import { pb } from "$lib/pocketbaseClient.js";
   import slbContractJson from "contracts/artifacts/contracts/SLB_Bond.sol/SLB_Bond.json";
+  import traditionalExchangeJson from "contracts/artifacts/contracts/OrderBook.sol/OrderBook.json";
+  import { RadioGroup, RadioItem } from "@skeletonlabs/skeleton";
 
   const ADDRESS_REGEX = /^(?:0x)?[0-9a-fA-F]{40}$/i;
   export let data: PageData;
@@ -16,6 +18,7 @@
   let initialCoins = 1;
   let initialSLBs = 1;
   let selectedStablecoinId: string;
+  let exchangeType: "decentralized" | "traditional" = "decentralized";
 
   let error: AlertMessage | undefined = undefined;
 
@@ -45,9 +48,16 @@
       }
 
       let slbContract = new Contract(slbAddress, slbContractJson.abi, $currAccount.networkAccount);
-      const exchangeAddress = await deployContract(slbContract);
+      const exchangeAddress = await (exchangeType == "decentralized"
+        ? deployDecentralizedExchangeContract(slbContract)
+        : deployTraditionalExchangeContract());
       const newBondId = bond?.id ?? (await createBondRecord(slbContract));
-      await createExchangeRecord(exchangeAddress, newBondId, selectedStablecoinId);
+      await createExchangeRecord(
+        exchangeAddress,
+        newBondId,
+        selectedStablecoinId,
+        exchangeType == "decentralized"
+      );
       goto(`/bonds/${newBondId}`);
     } catch (e) {
       console.error(e);
@@ -60,11 +70,17 @@
     }
   }
 
-  async function createExchangeRecord(address: string, bondId: string, stableCoinId: string) {
+  async function createExchangeRecord(
+    address: string,
+    bondId: string,
+    stableCoinId: string,
+    amm: boolean
+  ) {
     const data = {
       address,
       bond: bondId,
       stable_coin: stableCoinId,
+      amm,
     };
 
     await pb.collection("exchanges").create<Exchange>(data);
@@ -114,15 +130,15 @@
     return createdBond.id!;
   }
 
-  async function deployContract(slbContract: Contract): Promise<string> {
+  async function deployDecentralizedExchangeContract(slbContract: Contract): Promise<string> {
     const exchange = $currAccount.contract(backend);
-    const stableCoin = data.stableCoins.find((coin) => coin.id == selectedStablecoinId);
+    const stableCoin = data.stableCoins.find((coin) => coin.id == selectedStablecoinId)!!;
 
     await $stdlib.withDisconnect(() =>
       exchange.p.Creator({
         slbToken: slbAddress,
         slbContract: slbAddress,
-        stableToken: stableCoin!!.address,
+        stableToken: stableCoin.address,
         startExchange: async function (contractAddress: string) {
           await slbContract.approve(contractAddress, initialSLBs);
 
@@ -137,6 +153,18 @@
     console.log("Exchange Deployed");
     return exchange.getInfo();
   }
+
+  async function deployTraditionalExchangeContract(): Promise<string> {
+    const stableCoin = data.stableCoins.find((coin) => coin.id == selectedStablecoinId)!!;
+
+    const contractFactory = new ContractFactory(
+      traditionalExchangeJson.abi,
+      traditionalExchangeJson.bytecode,
+      $currAccount.networkAccount
+    );
+    const exchange = await contractFactory.deploy(slbAddress, stableCoin.address);
+    return exchange.address;
+  }
 </script>
 
 <main>
@@ -147,14 +175,14 @@
         <span class="text-xl ml-2 font-bold">SLB Contract Address</span>
         <input bind:value={slbAddress} class="input text-xl px-6 py-2" />
       </label>
-      <label class="label mt-8">
-        <span class="text-xl ml-2 font-bold">Initial SLBs</span>
-        <input bind:value={initialSLBs} type="number" min={1} class="input text-xl px-6 py-2" />
-      </label>
-      <label class="label mt-8">
-        <span class="text-xl ml-2 font-bold">Initial Coins</span>
-        <input bind:value={initialCoins} type="number" min={1} class="input text-xl px-6 py-2" />
-      </label>
+      <RadioGroup class="text-xl mt-10 justify-evenly">
+        <RadioItem bind:group={exchangeType} name="justify" value="decentralized"
+          >Decentralized Exchange</RadioItem
+        >
+        <RadioItem bind:group={exchangeType} name="justify" value="traditional"
+          >Traditional Exchange</RadioItem
+        >
+      </RadioGroup>
       <label class="label mt-8">
         <span class="text-xl ml-2 font-bold">Stable Coin Used</span>
 
@@ -164,6 +192,17 @@
           {/each}
         </select>
       </label>
+
+      {#if exchangeType == "decentralized"}
+        <label class="label mt-8">
+          <span class="text-xl ml-2 font-bold">Initial SLBs</span>
+          <input bind:value={initialSLBs} type="number" min={1} class="input text-xl px-6 py-2" />
+        </label>
+        <label class="label mt-8">
+          <span class="text-xl ml-2 font-bold">Initial Coins</span>
+          <input bind:value={initialCoins} type="number" min={1} class="input text-xl px-6 py-2" />
+        </label>
+      {/if}
       <ConnectButton class="btn text-2xl font-bold variant-filled-primary w-11/12 m-auto my-6">
         <button
           slot="otherButton"

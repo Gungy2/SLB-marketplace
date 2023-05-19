@@ -5,6 +5,7 @@
   import { ProgressBar, type PopupSettings, popup, TabGroup, Tab } from "@skeletonlabs/skeleton";
   import { clipboard } from "@skeletonlabs/skeleton";
   import Alert, { type AlertMessage } from "$lib/components/Alert.svelte";
+  import TraditionalExchangeCard from "$lib/components/TraditionalExchangeCard.svelte";
 
   export let data: PageData;
 
@@ -67,8 +68,8 @@
     <Tab bind:group={tabSet} name="Traditional Exchange" value={1}>Traditional Exchange</Tab>
     <svelte:fragment slot="panel">
       {#if tabSet === 0}
-        {#if data.exchange}
-          <SwapCard exchange={data.exchange} />
+        {#if data.ammExchange}
+          <SwapCard exchange={data.ammExchange} />
         {:else}
           <a
             href={`/create?address=${bond.address}`}
@@ -78,7 +79,16 @@
           </a>
         {/if}
       {:else if tabSet === 1}
-        <p>Not implemented</p>
+        {#if data.traditionalExchange}
+          <TraditionalExchangeCard exchange={data.traditionalExchange} />
+        {:else}
+          <a
+            href={`/create?address=${bond.address}`}
+            class="btn text-2xl font-bold variant-filled-primary w-11/12 m-auto my-6"
+          >
+            Deploy Traditional Exchange
+          </a>
+        {/if}
       {/if}
     </svelte:fragment>
   </TabGroup>
