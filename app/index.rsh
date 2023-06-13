@@ -2,12 +2,20 @@
 "use strict";
 
 const SLB = {
-  getBalance: Fun([], UInt),
+  hasUnclaimedFunds: Fun([Address], Bool),
+  claimAllCoupons: Fun([], Null),
 };
 
+const PositiveUInt = Refine(UInt, (x) => x > 0);
+
 const InitAssets = Object({
-  initSlbs: UInt,
-  initTokens: UInt,
+  initSlbs: PositiveUInt,
+  initTokens: PositiveUInt,
+});
+
+const DepositedAssets = Object({
+  depositedSlbs: PositiveUInt,
+  depositedTokens: PositiveUInt,
 });
 
 export const main = Reach.App(() => {
@@ -19,15 +27,14 @@ export const main = Reach.App(() => {
     startExchange: Fun([Contract], InitAssets),
   });
   const Retailer = API("Retailer", {
-    buySLBs: Fun([UInt], Bool),
-    sellSLBs: Fun([UInt], Bool),
-    customGetBalance: Fun([], UInt),
-    deposit: Fun([UInt], Bool),
+    buySLBs: Fun([PositiveUInt], Bool),
+    sellSLBs: Fun([PositiveUInt], UInt),
+    deposit: Fun([PositiveUInt], Bool),
     withdraw: Fun([], Bool),
   });
   const V = View("Main", {
     price: UInt,
-    deposits: Fun([Address], UInt),
+    deposits: Fun([Address], DepositedAssets),
   });
   init();
 
@@ -58,126 +65,157 @@ export const main = Reach.App(() => {
 
   Creator.interact.launched(getContract());
 
-  const deposits = new Map(UInt);
-  deposits[Creator] = initTokens;
+  const deposits = new Map(DepositedAssets);
+  deposits[Creator] = { depositedTokens: initTokens, depositedSlbs: initSlbs };
 
-  const [] = parallelReduce([])
+  const [stableTokenBalance, slbTokenBalance] = parallelReduce([
+    initTokens,
+    initSlbs,
+  ])
     .define(() => {
-      V.price.set(balance(stableToken) / balance(slbToken));
-      V.deposits.set((address) => fromSome(deposits[address], 0));
+      V.price.set(stableTokenBalance / slbTokenBalance);
+      V.deposits.set((address) =>
+        fromSome(deposits[address], { depositedTokens: 0, depositedSlbs: 0 })
+      );
     })
-    .invariant(balance(stableToken) > 0)
-    .invariant(balance(slbToken) > 0)
-    .invariant(balance() == 0)
-    // .invariant(
-    //   balance(slbToken) * balance() <= initSlbs * initTokens,
-    //   "Invariant has to hold"
-    // )
+    .invariant(stableTokenBalance > 0)
+    .invariant(slbTokenBalance > 0)
+    .invariant(stableTokenBalance == balance(stableToken))
+    .invariant(slbTokenBalance == balance(slbToken))
     .while(true)
     .paySpec([slbToken, stableToken])
     .api_(Retailer.buySLBs, (volume) => {
       check(volume > 0, "Must buy at least 1 SLB");
       check(
-        volume < balance(slbToken),
+        volume < slbTokenBalance,
         "Cannot buy more SLBs than currently in the pool"
       );
 
-      const newSlbs = balance(slbToken) - volume;
-      const newTokens = muldiv(
-        balance(stableToken),
-        balance(slbToken),
-        newSlbs
-      );
+      const newSlbs = slbTokenBalance - volume;
+      const newTokens = muldiv(stableTokenBalance, slbTokenBalance, newSlbs);
 
-      check(newTokens > balance(stableToken), "SLBs cannot be free");
-      const owedTokens = newTokens - balance(stableToken);
+      check(newTokens > stableTokenBalance, "SLBs cannot be free");
+      const owedTokens = newTokens - stableTokenBalance;
 
       return [
         [0, [0, slbToken], [owedTokens, stableToken]],
         (apiReturn) => {
+          if (slbContract.hasUnclaimedFunds(getAddress())) {
+            const _ = slbContract.claimAllCoupons.withBill()();
+          }
           transfer(volume, slbToken).to(this);
 
           apiReturn(true);
-          return [];
+          return [stableTokenBalance + owedTokens, slbTokenBalance - volume];
         },
       ];
     })
     .api_(Retailer.sellSLBs, (volume) => {
       check(volume > 0, "Must sell at least 1 SLB");
 
-      const oldSlbs = balance(slbToken) - volume;
-      const newTokens = muldiv(
-        balance(stableToken),
-        oldSlbs,
-        balance(slbToken)
-      );
+      const newSlbs = slbTokenBalance + volume;
+      const newTokens = muldiv(stableTokenBalance, slbTokenBalance, newSlbs);
       check(
         newTokens > 0,
         "Cannot sell more SLBs than currently can be bought"
       );
-      check(newTokens < balance(stableToken), "SLBs cannot be free");
+      check(newTokens < stableTokenBalance, "SLBs cannot be free");
 
-      const owedTokens = balance(stableToken) - newTokens;
+      const owedTokens = stableTokenBalance - newTokens;
 
       return [
         [0, [volume, slbToken], [0, stableToken]],
         (apiReturn) => {
           transfer(owedTokens, stableToken).to(this);
 
-          apiReturn(true);
-          return [];
-        },
-      ];
-    })
-    .api_(Retailer.customGetBalance, () => {
-      return [
-        [0, [0, slbToken], [0, stableToken]],
-        (apiReturn) => {
-          apiReturn(slbContract.getBalance());
-          return [];
+          apiReturn(owedTokens);
+          return [stableTokenBalance - owedTokens, slbTokenBalance + volume];
         },
       ];
     })
     .api_(Retailer.deposit, (slbsToDeposit) => {
       check(slbsToDeposit > 0, "Must deposit at least 1 SLB");
+
+      // Ensures that the *PRICE* of the SLB remains constant - AMM invariant increases
       const tokensToDeposit = muldiv(
         slbsToDeposit,
-        balance(stableToken),
-        balance(slbToken)
+        stableTokenBalance,
+        slbTokenBalance
       );
+      check(tokensToDeposit > 0, "Must deposit at least 1 token");
 
       return [
         [0, [slbsToDeposit, slbToken], [tokensToDeposit, stableToken]],
         (apiReturn) => {
-          deposits[this] = fromSome(deposits[this], 0) + tokensToDeposit;
+          const { depositedTokens, depositedSlbs } = fromSome(deposits[this], {
+            depositedTokens: 0,
+            depositedSlbs: 0,
+          });
+          deposits[this] = {
+            depositedTokens: depositedTokens + tokensToDeposit,
+            depositedSlbs: depositedSlbs + slbsToDeposit,
+          };
           apiReturn(true);
-          return [];
+          return [
+            stableTokenBalance + tokensToDeposit,
+            slbTokenBalance + slbsToDeposit,
+          ];
         },
       ];
     })
     .api_(Retailer.withdraw, () => {
-      const depositedTokens = fromSome(deposits[this], 0);
+      const { depositedTokens, depositedSlbs } = fromSome(deposits[this], {
+        depositedTokens: 0,
+        depositedSlbs: 0,
+      });
+
       check(
-        depositedTokens < balance(stableToken),
-        "You cannot withdraw due to lack of funds (tokens)!"
+        depositedTokens * depositedSlbs < slbTokenBalance * stableTokenBalance,
+        "Not enough liquidity to withdraw"
       );
-      const depositedSlbs = muldiv(
-        depositedTokens,
-        balance(slbToken),
-        balance(stableToken)
-      );
-      check(
-        depositedSlbs < balance(slbToken),
-        "You cannot withdraw due to lack of funds (SLBs)!"
-      );
+      check(depositedSlbs > 0);
+      check(depositedTokens > 0);
 
       return [
         (apiReturn) => {
-          deposits[this] = 0;
-          transfer(depositedSlbs, slbToken).to(this);
-          transfer(depositedTokens, stableToken).to(this);
+          if (slbContract.hasUnclaimedFunds(getAddress())) {
+            const _ = slbContract.claimAllCoupons.withBill()();
+          }
+          require(depositedTokens * depositedSlbs <
+            slbTokenBalance *
+              stableTokenBalance, "Not enough liquidity to withdraw");
+
+          const depositInvariant = depositedTokens * depositedSlbs;
+
+          // Ensures that the *PRICE* of the SLB remains constant - AMM invariant decreases
+          const slbsToReturn = sqrt(
+            muldiv(depositInvariant, slbTokenBalance, stableTokenBalance)
+          );
+          const tokensToReturn = sqrt(
+            muldiv(depositInvariant, stableTokenBalance, slbTokenBalance)
+          );
+          delete deposits[this];
+
+          if (balance() > 0) {
+            const networkTokensToReturn = muldiv(
+              sqrt(depositInvariant),
+              balance(),
+              sqrt(slbTokenBalance * stableTokenBalance)
+            );
+            enforce(networkTokensToReturn < balance());
+            transfer(networkTokensToReturn).to(this);
+          }
+
+          enforce(slbsToReturn < slbTokenBalance);
+          transfer(slbsToReturn, slbToken).to(this);
+
+          enforce(tokensToReturn < stableTokenBalance);
+          transfer(tokensToReturn, stableToken).to(this);
           apiReturn(true);
-          return [];
+          return [
+            stableTokenBalance - tokensToReturn,
+            slbTokenBalance - slbsToReturn,
+          ];
         },
       ];
     });

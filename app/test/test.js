@@ -32,6 +32,11 @@ async function createTestAccounts() {
   return [accAlice, accBob, accCreator];
 }
 
+async function increaseTime(seconds) {
+  await provider.send("evm_increaseTime", [seconds]);
+  await provider.send("evm_mine", []);
+}
+
 async function deploySLB() {
   const startingBalance = stdlib.parseCurrency(5);
   const [acc1, acc2, acc3] = await stdlib.newTestAccounts(3, startingBalance);
@@ -67,7 +72,7 @@ async function deploySLB() {
       "Bond 1, KPI: Greenhouse gas emissions",
       [1, 0, 0],
       100,
-      1,
+      2,
       10,
       5,
       100,
@@ -77,7 +82,7 @@ async function deploySLB() {
     );
   await newBond.wait();
 
-  return bond;
+  return { bond, owner: acc2, verifier: acc3 };
 }
 
 async function deployExchange(accCreator, bond, stableCoin, init) {
@@ -103,7 +108,7 @@ async function deployStableCoin(accCreator) {
 
 test("can deploy exchange", async () => {
   const [accCreator] = await createTestAccounts();
-  const bond = await deploySLB();
+  const { bond } = await deploySLB();
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 
@@ -130,7 +135,7 @@ test("can deploy exchange", async () => {
 
 test("can buy SLBs from the exchange", async () => {
   const [accAlice, accCreator] = await createTestAccounts();
-  const bond = await deploySLB();
+  const { bond } = await deploySLB();
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 
@@ -161,7 +166,7 @@ test("can buy SLBs from the exchange", async () => {
 
 test("can sell SLBs to the exchange", async () => {
   const [accAlice, accCreator] = await createTestAccounts();
-  const bond = await deploySLB();
+  const { bond } = await deploySLB();
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 
@@ -175,7 +180,7 @@ test("can sell SLBs to the exchange", async () => {
   await mintAlice.wait();
   const retailer = accAlice.contract(backend, exchange.getInfo());
 
-  await retailer.apis.Retailer.sellSLBs(10);
+  stdlib.bigNumberToNumber(await retailer.apis.Retailer.sellSLBs(10));
   expect(
     stdlib.bigNumberToNumber(
       await bond.balanceOf(exchange.getContractAddress())
@@ -193,7 +198,7 @@ test("can sell SLBs to the exchange", async () => {
 
 test("can deposit on the exchange", async () => {
   const [accAlice, accCreator] = await createTestAccounts();
-  const bond = await deploySLB();
+  const { bond } = await deploySLB();
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 
@@ -219,16 +224,24 @@ test("can deposit on the exchange", async () => {
       await stdlib.balanceOf(await exchange.getContractAddress(), stableCoin.id)
     )
   ).toBe(300);
+
   expect(
     stdlib.bigNumberToNumber(
-      await retailer.unsafeViews.Main.deposits(accAlice.getAddress())
+      (await retailer.unsafeViews.Main.deposits(accAlice.getAddress()))
+        .depositedTokens
     )
   ).toBe(100);
+  expect(
+    stdlib.bigNumberToNumber(
+      (await retailer.unsafeViews.Main.deposits(accAlice.getAddress()))
+        .depositedSlbs
+    )
+  ).toBe(10);
 });
 
 test("can withdraw from the exchange", async () => {
   const [accAlice, accCreator] = await createTestAccounts();
-  const bond = await deploySLB();
+  const { bond } = await deploySLB();
   const mint = await bond.connect(accCreator.networkAccount).mintBond(20);
   await mint.wait();
 
@@ -256,9 +269,63 @@ test("can withdraw from the exchange", async () => {
       await stdlib.balanceOf(await exchange.getContractAddress(), stableCoin.id)
     )
   ).toBe(200);
+
   expect(
     stdlib.bigNumberToNumber(
-      await retailer.unsafeViews.Main.deposits(accAlice.getAddress())
+      (await retailer.unsafeViews.Main.deposits(accAlice.getAddress()))
+        .depositedTokens
     )
   ).toBe(0);
+  expect(
+    stdlib.bigNumberToNumber(
+      (await retailer.unsafeViews.Main.deposits(accAlice.getAddress()))
+        .depositedSlbs
+    )
+  ).toBe(0);
+});
+
+test("can correctly claim coupons", async () => {
+  const [accAlice, accCreator] = await createTestAccounts();
+  const { bond, owner, verifier } = await deploySLB();
+  await bond.connect(accCreator.networkAccount).mintBond(30);
+
+  const stableCoin = await deployStableCoin(accCreator);
+  const exchange = await deployExchange(accCreator, bond, stableCoin, {
+    initSlbs: 20,
+    initTokens: 200,
+  });
+
+  await bond.connect(accAlice.networkAccount).mintBond(10);
+  const retailer = accAlice.contract(backend, exchange.getInfo());
+  stableCoin.mint(accAlice, 200);
+
+  await retailer.apis.Retailer.deposit(10);
+  await increaseTime(100);
+
+  await bond
+    .connect(owner.networkAccount)
+    .fundBond({ value: ethers.utils.parseUnits("1", "ether") });
+
+  const active = await bond.connect(owner.networkAccount).setBondActive();
+  await active.wait();
+  await bond.connect(owner.networkAccount).registerDevice("123");
+
+  const deviceHash = await bond
+    .connect(owner.networkAccount)
+    .hash("123", owner.networkAccount.getAddress(), 1, 2, 3);
+
+  await increaseTime(5);
+  await bond
+    .connect(owner.networkAccount)
+    .reportImpact(1, 2, 3, "123", deviceHash);
+
+  await bond.connect(verifier.networkAccount).verifyImpact(true);
+
+  expect(
+    await bond.hasUnclaimedFunds(exchange.getContractAddress())
+  ).toBeTruthy();
+  await retailer.apis.Retailer.withdraw();
+  expect(
+    await bond.hasUnclaimedFunds(exchange.getContractAddress())
+  ).toBeFalsy();
 });

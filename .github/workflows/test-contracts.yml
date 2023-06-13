@@ -18,11 +18,11 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
-      # - name: Compile Reach contracts
-      #   run: ./reach compile app/index.rsh -o app/build
       - name: Install dependencies
         run: pnpm install
-      # - name: Compile hardhat contracts
-      #   run: pnpm -C contracts/ethereum compile
+      - name: Compile Reach Contracts
+        run: ./reach compile -o app/build app/index.rsh
+      - name: Compile Solidity Contracts
+        run: pnpm -C contracts/ethereum compile
       - name: Run tests
-        run: pnpm -C contracts/ethereum test
+        run: pnpm -r test
