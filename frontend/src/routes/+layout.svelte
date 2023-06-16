@@ -31,9 +31,11 @@
   <svelte:fragment slot="lead">
     <a href="/" class="inline-block mb-1"><HomeButton size="3rem" /></a></svelte:fragment
   >
-  <a href="/" class="inline-block ml-2">
+  <a href="/" class="inline-block ml-2 pt-2">
     <img alt="SLB DEX Logo" src={logo} class="object-cover h-10" />
   </a>
+  <a href="/bonds" class="ml-10 text-4xl hover:font-bold">Bonds</a>
+  <a href="/create" class="mx-10 text-4xl hover:font-bold">Create</a>
   <svelte:fragment slot="trail">
     <ConnectButton class="btn text-lg variant-filled-primary w-11/12 m-auto" />
   </svelte:fragment>

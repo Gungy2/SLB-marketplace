@@ -141,7 +141,6 @@
         stableToken: stableCoin.address,
         startExchange: async function (contractAddress: string) {
           await slbContract.approve(contractAddress, initialSLBs);
-
           return {
             initSlbs: initialSLBs,
             initTokens: initialCoins,
