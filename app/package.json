@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
-    "run": " REACH_CONNECTOR_MODE=ETH-live ETH_NODE_URI=http://127.0.0.1:7545 REACH_ISOLATED_NETWORK=1 ../reach compile && node index.js",
+    "run": "REACH_CONNECTOR_MODE=ETH node index.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "author": "George Ungureanu Vranceanu",

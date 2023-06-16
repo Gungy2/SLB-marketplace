@@ -9,7 +9,7 @@ const stdlib = loadStdlib("ETH");
 const { ethers } = stdlib;
 const myGasLimit = 5000000;
 
-const ganacheOptions = {};
+const ganacheOptions = { miner: { blockTime: 0 } };
 const ganacheProvider = new ethers.providers.Web3Provider(
   ganache.provider(ganacheOptions)
 );
@@ -146,7 +146,7 @@ test("can buy SLBs from the exchange", async () => {
   });
 
   const retailer = accAlice.contract(backend, exchange.getInfo());
-  stableCoin.mint(accAlice, 200);
+  await stableCoin.mint(accAlice, 200);
 
   await retailer.apis.Retailer.buySLBs(10);
   expect(
@@ -211,7 +211,7 @@ test("can deposit on the exchange", async () => {
   const mintAlice = await bond.connect(accAlice.networkAccount).mintBond(10);
   await mintAlice.wait();
   const retailer = accAlice.contract(backend, exchange.getInfo());
-  stableCoin.mint(accAlice, 200);
+  await stableCoin.mint(accAlice, 200);
 
   await retailer.apis.Retailer.deposit(10);
   expect(
@@ -254,7 +254,7 @@ test("can withdraw from the exchange", async () => {
   const mintAlice = await bond.connect(accAlice.networkAccount).mintBond(10);
   await mintAlice.wait();
   const retailer = accAlice.contract(backend, exchange.getInfo());
-  stableCoin.mint(accAlice, 200);
+  await stableCoin.mint(accAlice, 200);
 
   await retailer.apis.Retailer.deposit(10);
   await retailer.apis.Retailer.withdraw();
@@ -297,7 +297,7 @@ test("can correctly claim coupons", async () => {
 
   await bond.connect(accAlice.networkAccount).mintBond(10);
   const retailer = accAlice.contract(backend, exchange.getInfo());
-  stableCoin.mint(accAlice, 200);
+  await stableCoin.mint(accAlice, 200);
 
   await retailer.apis.Retailer.deposit(10);
   await increaseTime(100);
