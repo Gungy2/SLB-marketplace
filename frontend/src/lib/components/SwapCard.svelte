@@ -4,6 +4,7 @@
   import * as backend from "slbdexx/build/index.main.mjs";
   import { onMount } from "svelte";
   import Arrow from "$lib/images/next-arrow.svg?component";
+  import Alert, { type AlertMessage } from "./Alert.svelte";
 
   export let exchange: Exchange;
 
@@ -13,6 +14,8 @@
   let price: number;
 
   let retailer: any;
+
+  let alertMessage: AlertMessage | undefined = undefined;
 
   onMount(async () => {
     const interval = setInterval(async () => {
@@ -42,17 +45,24 @@
     } else {
       await retailer.apis.Retailer.sellSLBs(slbs);
     }
+    setAlertMessage("Transaction completed!");
     await fetchPrice();
   }
 
   async function handleDeposit() {
     await retailer.apis.Retailer.deposit(depositSlbs);
+    setAlertMessage("Deposit registered!");
     await fetchPrice();
   }
 
   async function handleWithdrawal() {
     await retailer.apis.Retailer.withdraw();
+    setAlertMessage("Withdrawal completed!");
     await fetchPrice();
+  }
+
+  function setAlertMessage(title: string) {
+    alertMessage = { title, message: "" };
   }
 
   function arrowStyles(isBuying: boolean) {
@@ -115,4 +125,5 @@
       </button>
     </div>
   </form>
+  <Alert type="success" variant="filled" bind:alertMessage />
 </div>
