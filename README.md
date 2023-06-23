@@ -48,7 +48,9 @@ pnpm install
 frontend/pocketbase/pocketbase serve
 ```
 
-4. Execute the `run.sh` script, that deploys the contracts:
+4. [Install and run Ganache on port 7545](https://trufflesuite.com/ganache/)
+
+5. Execute the `run.sh` script, that deploys the contracts:
 
 ```sh
 ./run.sh
@@ -66,19 +68,19 @@ In order to execute the tests in all subdirectories run:
 pnpm install
 ```
 
-2. Compile the Reach contracts:
+3. Compile the Reach contracts:
 
 ```sh
 ./reach compile app/index.rsh -o app/build
 ```
 
-2. Compile the Solidity contracts:
+4. Compile the Solidity contracts:
 
 ```sh
 pnpm -C contracts/ethereum compile
 ```
 
-3. Execute the command:
+5. Execute the command:
 
 ```sh
 pnpm test

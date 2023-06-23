@@ -8,8 +8,14 @@ if [[ $STABLECOIN_ADDRESS != 0x* ]]; then
   exit 1
 fi
 
+if [[ -z "${POCKETBASE_URL}" ]]; then
+  POCKETBASE="http://localhost:8090"
+else
+  POCKETBASE="${POCKETBASE_URL}"
+fi
+
 curl -X POST \
-  http://localhost:8090/api/collections/stable_coins/records \
+  $POCKETBASE/api/collections/stable_coins/records \
   -H 'content-type: application/json' \
   -d '{
   "name": "USD Coin",
