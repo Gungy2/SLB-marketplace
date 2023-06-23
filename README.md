@@ -1,38 +1,85 @@
 # SLB-marketplace
 
-## Week 1 (08.05-14.05)
+This is the main repository containing the SLB Exchange built for my MEng Finaly Year Project.
 
-- Finish containerization of the application
-- Continue working on the traditional exchange
+## Cloning the repository
 
-## Week 2 (15.05-21.05)
+The repository should be cloned using:
 
-- Finish traditional exchange and hook it up with the frontend
-- Start working on the report by changing and tailoring the background reading and context to the scope of the project
+```sh
+git clone --recurse-submodules git@github.com:Gungy2/SLB-marketplace.git
+```
 
-## Week 3 (22.05-28.05)
+since it contains a submodule.
 
-- Try to find stronger invariants and formal theorems for both the exchanges
-- Deal with coupons
-- Start working on the Project part of the report
+## Running The Exchange
 
-## Weeks 4-5 (29.05-11.06)
+First change the address in `contracts/ethereum/scripts/deploy.js` to your local Metamask address.
 
-- Smaller code changes (adding more tests, improving the frontend, etc.)
-- Finish the Project part of the report (present the architecture of the platform, how everything works with each other, etc.)
+### Using Docker
 
-## Week 6 (05.06-11.06)
+The easiest way to run the exchange is using Docker Compose:
 
-- Run required tests for the evaluation section
-- Write the evaluation part of the report
+```sh
+docker compose up
+```
 
-## Week 7 (12.06-18.06)
+### Manually
 
-- Deploy smart contracts on testnet
-- Deploy frontend on a dedicated platform
-- Write the abstract and the conclusion of the report
+These steps need to be taken in order to run the exchange manually.
 
-## Week 8 (19.06-25.06)
+1. [Install `pnpm`](https://pnpm.io/installation)
 
-- Last details of the report
-- Prepare the final presentation
+2. Install the JavaScript dependencies:
+
+```sh
+pnpm install
+```
+
+2. Compile the Reach contracts:
+
+```sh
+./reach compile app/index.rsh -o app/build
+```
+
+3. Start the database:
+
+```sh
+frontend/pocketbase/pocketbase serve
+```
+
+4. Execute the `run.sh` script, that deploys the contracts:
+
+```sh
+./run.sh
+```
+
+## Executing the Test
+
+In order to execute the tests in all subdirectories run:
+
+1. [Install `pnpm`](https://pnpm.io/installation)
+
+2. Install the JavaScript dependencies:
+
+```sh
+pnpm install
+```
+
+2. Compile the Reach contracts:
+
+```sh
+./reach compile app/index.rsh -o app/build
+```
+
+2. Compile the Solidity contracts:
+
+```sh
+pnpm -C contracts/ethereum compile
+```
+
+3. Execute the command:
+
+```sh
+pnpm test
+```
